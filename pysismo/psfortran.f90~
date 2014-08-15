@@ -1,0 +1,238 @@
+module special_functions
+
+    real, parameter, private :: &
+        deg2rad = 3.141592654/180., &
+        R = 6371.0
+
+contains
+
+    function erf(x)
+    !       ===================================================
+    !       Purpose: This program computes the error function 
+    !                erf(x) using subroutine ERROR
+    !       Input:   x   --- Argument of erf(x)
+    !       Output:  ERR --- erf(x)
+    !       Example:
+    !                  x         erf(x)
+    !                ---------------------
+    !                 1.0       .84270079
+    !                 2.0       .99532227
+    !                 3.0       .99997791
+    !                 4.0       .99999998
+    !                 5.0      1.00000000
+    !       ===================================================
+        implicit none
+        double precision, parameter :: eps = 1.0D-15, pi=3.141592653589793D0
+        double precision :: erf, x, x2, er, r, c0
+        integer :: k
+       
+        x2=x*x
+        if (dabs(x).lt.3.5d0) then
+            er=1.0d0
+            r=1.0d0
+            do k=1,50
+                r=r*x2/(k+0.5d0)
+                er=er+r
+                if (dabs(r).le.dabs(er)*eps) exit
+            enddo
+            c0=2.0d0/dsqrt(pi)*x*dexp(-x2)
+            erf=c0*er
+        else
+            er=1.0d0
+            r=1.0d0
+            do k=1,12
+                r=-r*(k-0.5d0)/x2
+                er=er+r
+            enddo
+            c0=dexp(-x2)/(dabs(x)*dsqrt(pi))
+            erf=1.0d0-c0*er
+            if (x.lt.0.0) erf=-erf
+        endif
+
+    end function
+
+    !-----------------------------------------------------------------------------------------------
+    !fonction qui gÃ©nÃ¨re un vecteur pour une variable alÃ©atoire gouvernÃ©e par une fdp gaussienne
+    !dont I95pc est l'intervalle de confiance Ã  95%
+    !
+    ! ne pas oublier d'appeler RANDOM_SEED avant !!!
+    !-----------------------------------------------------------------------------------------------
+    function GaussianRandNb(I95pc, N)
+        implicit none
+        real, parameter :: pi = 3.141592654
+        integer :: N, i
+        real :: I95pc, GaussianRandNb(N), sigma, x1(N), x2(N), cosx2(N)
+ 
+        !l'ecart-type d'une distribution gaussienne est env. 0.5 fois l'int. de confiance 95%
+        sigma = I95pc / 2 
+
+        call random_number(x1)
+        call random_number(x2)
+        cosx2 = cos(2*pi*x2)
+
+        do i = 1, N
+            GaussianRandNb(i) = sigma * sqrt(-2.0*log(x1(i))) * cosx2(i)
+        enddo        
+
+    end function
+
+    !------------------------------------------------------------------------------------------------
+
+    function sigma_mean(lonlat, w, sigma, n, m, dcorr)
+        !
+        ! function to return the (1 sigma) uncertainty of the mean of a series, 
+        ! with coordinates lonlat(:,2), weights(:), individual uncertainties sigma(:)
+        ! and correlation distance dcorr
+        !
+        ! an exponential covariance function is assumed
+
+        implicit none
+        integer :: n,m
+        real :: sigma_mean, lonlat(n,m), w(n), sigma(n), dcorr
+
+        real :: dij, Cij, wtot, coord_i(2), coord_j(2)
+        integer :: i,j
+
+        write(*,*) n, ' data'
+        write(*,*) 'dcorr =', dcorr
+        sigma_mean = 0.0
+        wtot = sum(w)
+        do i = 1, n
+            if (i/1000 == i/1000.) &
+                write(*,'(a,i6,"/",i6)') 'Processing data ', i, n
+            coord_i = lonlat(i,1:2)
+            sigma_mean  = sigma_mean + (w(i)*sigma(i))**2
+            do j = i+1, n
+                coord_j = lonlat(j,1:2)
+                dij = arcdist(coord_i, coord_j)
+                Cij = sigma(i)*sigma(j)*exp(-dij/dcorr)
+                sigma_mean  = sigma_mean + 2.0*w(i)*w(j)*Cij
+            enddo
+        enddo
+        sigma_mean = sqrt(sigma_mean)/wtot
+
+    end function
+
+    !------------------------------------------------------------------------------------------------
+
+    subroutine moving_avg(array, array_avg, n, window)
+        ! function to perform a running avg
+        implicit none
+        integer :: n, window
+        real, intent(in)  :: array(n)
+		real, intent(out) :: array_avg(n)        
+        integer :: i, imin, imax
+       
+        do i = 1, n           
+            if (i<= window) then
+                imin = 1
+            else
+                imin = i - window
+            endif
+            if (i >= n-window) then
+                imax = n
+            else
+                imax = i + window
+            endif
+
+            array_avg(i) = sum(array(imin:imax)) / (imax-imin+1)
+		enddo
+    end subroutine
+    
+    !------------------------------------------------------------------------------------------------
+
+    subroutine moving_avg_mask(array, array_avg, mask, n, window)
+        ! function to perform a running avg on a masked array
+        implicit none
+        integer :: n, window
+        real, intent(in)  :: array(n)
+		real, intent(out) :: array_avg(n)  
+        logical :: mask(n)
+        
+        integer :: i, imin, imax
+
+        array_avg = 0.0        
+        do i = 1, n
+            if ( .not. mask(i) ) cycle            
+            if (i<= window) then
+                imin = 1
+            else
+                imin = i - window
+            endif
+            if (i >= n-window) then
+                imax = n
+            else
+                imax = i + window
+            endif
+
+            array_avg(i) = sum(array(imin:imax),mask=mask(imin:imax)) / count(mask(imin:imax))
+		enddo
+    end subroutine
+
+    !------------------------------------------------------------------------------------------------
+
+    function arcdist(lonlat1, lonlat2)
+        !calcul de la distance en km entre deux points sur la terre
+        implicit none
+        
+        real :: arcdist, lonlat1(2), lonlat2(2)
+        real :: lon1, lat1, lon2, lat2, sin1, cos1, sin2, cos2, cosl, q
+        
+        lon1 = lonlat1(1)
+        lat1 = lonlat1(2)
+        lon2 = lonlat2(1)
+        lat2 = lonlat2(2)
+
+        sin1=sin(lat1*deg2rad)                                                  
+        cos1=cos(lat1*deg2rad)                                                  
+        sin2=sin(lat2*deg2rad)                                                  
+        cos2=cos(lat2*deg2rad)                                           
+        cosl=cos((lon2-lon1)*deg2rad)
+        q=sin1*sin2+cos1*cos2*cosl                                        
+        if(q>=1.) q=1.
+        if(q<=-1.) q=-1.                                            
+        arcdist = R * acos(q)
+    end function
+
+    function arcdistlat(lat1, lat2)
+        ! distance le long d'un méridien
+        implicit none
+
+        real, intent(in) :: lat1, lat2
+        real :: arcdistlat
+
+        arcdistlat = R*deg2rad*abs(lat2-lat1)
+    end function
+
+    function arcdistlon(lon1, lon2, lat)
+        ! distance le long d'un parallèle
+        implicit none
+
+        real, intent(in) :: lon1, lon2, lat
+        real :: arcdistlon, dlon
+
+        dlon = abs(lon2-lon1)
+        do while (dlon>180.0)
+            dlon = dlon-360.0
+        enddo
+        dlon = abs(dlon)
+        arcdistlon = R*cos(deg2rad*lat)*deg2rad*dlon
+    end function
+
+    !---------------------------------------------------------------------------------------------
+    ! cardinal sinus
+    !---------------------------------------------------------------------------------------------
+
+    real function sinc(x)
+        implicit none
+        real :: x
+
+        if (x==0.0) then
+            sinc = 1.0
+        else
+            sinc = sin(x)/x
+        endif
+
+end function
+
+end module
