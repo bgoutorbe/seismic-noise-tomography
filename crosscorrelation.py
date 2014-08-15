@@ -2,7 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-Stackig cross-correlations of pairs of station.
+This script reads seismic records from a set of station, and
+calculates the cross-correlations between all pairs of stations
+(or optionally displays their amplitude spectra).
+
+The procedure consists in stacking daily cross-correlations
+between pairs of stations after:
+(1) removing the instrument response, the mean and the trend,
+(2) band-passing the data,
+(3) normalizing the signal with its amplitude in the earthquake
+    period band (or one-bit normalizing the signal) and
+(4) whitening the amplitude spectrum
 """
 
 from pysismo import pscrosscorr, pserrors, psspectrum, psstation, psutils, psfortran
