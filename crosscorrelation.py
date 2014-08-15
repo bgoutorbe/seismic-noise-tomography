@@ -12,7 +12,7 @@ between pairs of stations after:
 (2) band-passing the data,
 (3) normalizing the signal with its amplitude in the earthquake
     period band (or one-bit normalizing the signal) and
-(4) whitening the amplitude spectrum
+(4) whitening the amplitude spectru
 """
 
 from pysismo import pscrosscorr, pserrors, psspectrum, psstation, psutils, psfortran
