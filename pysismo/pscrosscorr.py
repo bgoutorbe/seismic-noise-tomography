@@ -764,7 +764,7 @@ class CrossCorrelation:
 
     def plot_FTAN(self, rawampl=None, rawvg=None, cleanampl=None, cleanvg=None,
                   whiten=True, showplot=True, months=None, bbox=BBOX_ONEPAIR,
-                  figsize=(13, 5), outfile=None):
+                  figsize=(16, 5), outfile=None):
         """
         Plots log[ampl(T0,v)²], where ampl(T0,v) is the amplitude
         from the FTAN analysis, and the group velocity curve,
@@ -789,85 +789,175 @@ class CrossCorrelation:
 
         # preparing figure
         fig = plt.figure(figsize=figsize)
-        gs1 = gridspec.GridSpec(1, 3, wspace=0)
+
+        # subplot windows = original cross-correlation + band-filtered cross-correlations
+        subplot_windows = len(PLOTXCORR_BANDS) + 1
+        gs1 = gridspec.GridSpec(subplot_windows, 1, wspace=0, hspace=0)
         axlist = [fig.add_subplot(ss) for ss in gs1]
 
+        gs2 = gridspec.GridSpec(1, 3, wspace=0)
+        axlist2 = [fig.add_subplot(ss) for ss in gs2]
+
+        # ==========================================================
+        # 1th subplot: plot of correlation in different frequencies
+        # =========================================================
+
+        # todo: re-use plot_by_period_band() here
+
+        xlim = [0, 300]
+        vmin = 2.5
+        vmax = 5.0
+
+        # symmetrization
+        xcout = self.symmetrize(inplace=False)
+
+        # spectral whitening
+        if whiten:
+            xcout = xcout.whiten(inplace=False)
+
+        # cross-corr of desired months
+        xcdata = xcout._get_monthyears_xcdataarray(months=months)
+
+        # plotting original cross-correlation
+        axlist[0].plot(xcout.timearray, xcdata)
+        xy = (axlist[0].set_xlim()[0] + 10, axlist[0].set_ylim()[1] / 2)
+        axlist[0].annotate('Original data', xy=xy, xytext=xy,
+                           bbox={'color': 'k', 'facecolor': 'white'})
+
+        # xlims
+        if xlim:
+            axlist[0].set_xlim(xlim)
+        # removing labels
+        axlist[0].set_yticklabels([])
+
+        # vmin, vmax
+        vkwargs = {
+            'fontsize': 6,
+            'horizontalalignment': 'center',
+            'bbox': dict(color='k', facecolor='white')}
+        if vmin:
+            ylim = axlist[0].set_ylim()
+            axlist[0].plot(2 * [xcout.dist() / vmin], ylim, color='grey')
+            xy = (xcout.dist() / vmin, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
+            axlist[0].annotate(s='{0} km/s'.format(vmin), xy=xy, xytext=xy, **vkwargs)
+            axlist[0].set_ylim(ylim)
+
+        if vmax:
+            ylim = axlist[0].set_ylim()
+            axlist[0].plot(2 * [xcout.dist() / vmax], ylim, color='grey')
+            xy = (xcout.dist() / vmax, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
+            axlist[0].annotate(s='{0} km/s'.format(vmax), xy=xy, xytext=xy, **vkwargs)
+            axlist[0].set_ylim(ylim)
+
+        # plotting band-filtered cross-correlation
+        for iplot, (tmin, tmax) in enumerate(PLOTXCORR_BANDS, start=1):
+            dataarray = psutils.bandpass(data=xcdata, df=1.0 / xcout._get_xcorr_dt(),
+                                         tmin=tmin, tmax=tmax)
+            axlist[iplot].plot(xcout.timearray, dataarray)
+            xy = (axlist[iplot].set_xlim()[0] + 10, axlist[iplot].set_ylim()[1] / 2)
+            axlist[iplot].annotate(s='{tmin} - {tmax} s'.format(tmin=tmin, tmax=tmax),
+                                   xy=xy, xytext=xy,
+                                   bbox={'color': 'k', 'facecolor': 'white'})
+
+            # vmin, vmax
+            if vmin:
+                ylim = axlist[iplot].set_ylim()
+                axlist[iplot].plot(2 * [xcout.dist() / vmin], ylim, color='grey')
+                #axlist[iplot].set_ylim(ylim)
+            if vmax:
+                ylim = axlist[iplot].set_ylim()
+                axlist[iplot].plot(2 * [xcout.dist() / vmax], ylim, color='grey')
+                #axlist[iplot].set_ylim(ylim)
+            # removing labels
+            axlist[iplot].set_yticklabels([])
+            if iplot < len(PLOTXCORR_BANDS):
+                axlist[iplot].set_xticklabels([])
+            # xlims
+            if xlim:
+                axlist[iplot].set_xlim(xlim)
+            # axis title
+            if iplot == len(PLOTXCORR_BANDS):
+                axlist[iplot].set_xlabel('Time (s)')
+
         # =====================
-        # 1st subplot: raw FTAN
+        # 2st subplot: raw FTAN
         # =====================
 
         extent = (min(RAWFTAN_PERIODS), max(RAWFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
         m = np.log10(rawampl.transpose() ** 2)
-        axlist[0].imshow(m, aspect='auto', origin='lower', extent=extent)
-        axlist[0].set_xlabel("period (sec)")
-        axlist[0].set_ylabel("Velocity (km/sec)")
+        axlist2[0].imshow(m, aspect='auto', origin='lower', extent=extent)
+        axlist2[0].set_xlabel("period (sec)")
+        axlist2[0].set_ylabel("Velocity (km/sec)")
         # saving limits
-        xlim = axlist[0].get_xlim()
-        ylim = axlist[0].get_ylim()
+        xlim = axlist2[0].get_xlim()
+        ylim = axlist2[0].get_ylim()
         # raw & clean vg curves
-        axlist[0].plot(rawvg.periods, rawvg.v, color='blue',
-                       linestyle='dashed', lw=2, label='raw FTAN')
-        axlist[0].plot(cleanvg.periods, cleanvg.v, color='black',
-                       lw=2, label='clean FTAN')
-        axlist[0].legend()
+        axlist2[0].plot(rawvg.periods, rawvg.v, color='blue',
+                        linestyle='dashed', lw=2, label='raw FTAN')
+        axlist2[0].plot(cleanvg.periods, cleanvg.v, color='black',
+                        lw=2, label='clean FTAN')
+        axlist2[0].legend()
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
-        axlist[0].plot([cutoffperiod, cutoffperiod], ylim, color='grey')
+        axlist2[0].plot([cutoffperiod, cutoffperiod], ylim, color='grey')
         # setting initial extent
-        axlist[0].set_xlim(xlim)
-        axlist[0].set_ylim(ylim)
+        axlist2[0].set_xlim(xlim)
+        axlist2[0].set_ylim(ylim)
 
         # =======================
-        # 2nd subplot: clean FTAN
+        # 3nd subplot: clean FTAN
         # =======================
 
         extent = (min(CLEANFTAN_PERIODS), max(CLEANFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
         m = np.log10(cleanampl.transpose() ** 2)
-        axlist[1].imshow(m, aspect='auto', origin='lower', extent=extent)
-        axlist[1].set_xlabel("period (sec)")
-        axlist[1].set_ylabel("Velocity (km/sec)")
+        axlist2[1].imshow(m, aspect='auto', origin='lower', extent=extent)
+        axlist2[1].set_xlabel("period (sec)")
+        axlist2[1].set_ylabel("Velocity (km/sec)")
         # saving limits
-        xlim = axlist[1].get_xlim()
-        ylim = axlist[1].get_ylim()
+        xlim = axlist2[1].get_xlim()
+        ylim = axlist2[1].get_ylim()
         # trimester vg curves
         ntrimester = len(cleanvg.v_trimesters)
         for i, vg_trimester in enumerate(cleanvg.filtered_trimester_vels()):
             label = '{} trimester FTANs'.format(ntrimester) if i == 0 else None
-            axlist[1].plot(cleanvg.periods, vg_trimester, color='gray', label=label)
+            axlist2[1].plot(cleanvg.periods, vg_trimester, color='gray', label=label)
 
         # clean vg curve + error bars
         vels, sdevs = cleanvg.filtered_vels_sdevs()
-        axlist[1].errorbar(x=cleanvg.periods, y=vels, yerr=sdevs,
-                           color='black', lw=2, label='clean FTAN')
-        axlist[1].legend()
+        axlist2[1].errorbar(x=cleanvg.periods, y=vels, yerr=sdevs,
+                            color='black', lw=2, label='clean FTAN')
+        axlist2[1].legend()
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
-        axlist[1].plot([cutoffperiod, cutoffperiod], ylim, color='grey')
+        axlist2[1].plot([cutoffperiod, cutoffperiod], ylim, color='grey')
         # setting initial extent
-        axlist[1].set_xlim(xlim)
-        axlist[1].set_ylim(ylim)
+        axlist2[1].set_xlim(xlim)
+        axlist2[1].set_ylim(ylim)
 
         # ========================================
-        # 3rd subplot: tectonic provinces and pair
+        # 4rd subplot: tectonic provinces and pair
         # ========================================
 
-        psutils.basemap(axlist[2], labels=False)
+        psutils.basemap(axlist2[2], labels=False)
         x = (self.station1.coord[0], self.station2.coord[0])
         y = (self.station1.coord[1], self.station2.coord[1])
         s = (self.station1.name, self.station2.name)
-        plt.plot(x, y, '^-', color='k', ms=10, mfc='w', mew=1)
+        axlist2[2].plot(x, y, '^-', color='k', ms=10, mfc='w', mew=1)
         for lon, lat, label in zip(x, y, s):
-            axlist[2].text(lon, lat, label, ha='center', va='bottom',
-                           fontsize=10, weight='bold')
-        axlist[2].set_xlim(bbox[:2])
-        axlist[2].set_ylim(bbox[2:])
+            axlist2[2].text(lon, lat, label, ha='center', va='bottom',
+                            fontsize=7, weight='bold')
+        axlist2[2].set_xlim(bbox[:2])
+        axlist2[2].set_ylim(bbox[2:])
+
+        # adjusting sizes
+        gs1.tight_layout(fig, rect=[0, 0.03, 0.25, 0.95])
+        gs2.tight_layout(fig, rect=[0.25, 0.03, 1, 0.95])
 
         # figure title
         title = self._FTANplot_title(whiten=whiten, months=months)
         fig.suptitle(title, fontsize=14)
-        gs1.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
 
         # exporting to file
         if outfile:
@@ -1664,7 +1754,6 @@ def load_pickled_xcorr_interactive(xcorr_dir=XCORR_DIR, xcorr_files='xcorr*.pick
     return xc
 
 
-# noinspection PyTypeChecker
 def FTAN(x, dt, periods, alpha, phase_corr=None):
     """
     Frequency-time analysis of a time series.
