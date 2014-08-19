@@ -465,12 +465,28 @@ class CrossCorrelation:
 
         plt.show()
 
-    def plot_by_period_band(self, whiten=False, vmin=2.5, vmax=5.0, months=None,
-                            xlim=None, outfile=None):
+    def plot_by_period_band(self, axlist=None, plot_title=True, whiten=False,
+                            vmin=2.5, vmax=5.0, months=None, outfile=None):
         """
         Plots cross-correlation for various bands of periods
         (PLOTXCORR_BANDS)
+
+        @type axlist: list of L{matplotlib.axes.AxesSubplot}
         """
+        # one plot per band + plot of original xcorr
+        nplot = len(PLOTXCORR_BANDS) + 1
+
+        # limits of time axis
+        xlim = (0, min(1.5 * self.dist() / vmin, self.timearray.max()))
+
+        # creating figure if not given as input
+        fig = None
+        if not axlist:
+            fig = plt.figure()
+            axlist = [fig.add_subplot(nplot, 1, i) for i in range(1, nplot + 1)]
+
+        axlist[0].get_figure().subplots_adjust(hspace=0)
+
         # symmetrization
         xcout = self.symmetrize(inplace=False)
 
@@ -481,27 +497,22 @@ class CrossCorrelation:
         # cross-corr of desired months
         xcdata = xcout._get_monthyears_xcdataarray(months=months)
 
-        # one plot per band + plot of original xcorr
-        nplot = len(PLOTXCORR_BANDS) + 1
-        plt.subplots_adjust(hspace=0)
-
         # plotting original cross-correlation
-        plt.subplot(nplot, 1, 1)
-        plt.plot(xcout.timearray, xcdata)
-        xy = (plt.xlim()[0] + 10, plt.ylim()[1] / 2)
-        plt.annotate('Original data', xy=xy, xytext=xy,
-                     bbox={'color': 'k', 'facecolor': 'white'})
+        axlist[0].plot(xcout.timearray, xcdata)
+        xy = (axlist[0].get_xlim()[0] + 10, axlist[0].get_ylim()[1] / 2)
+        axlist[0].annotate('Original data', xy=xy, xytext=xy,
+                           bbox={'color': 'k', 'facecolor': 'white'})
         # xlims
-        if xlim:
-            plt.xlim(xlim)
-        plt.grid()
+        _ = axlist[0].set_xlim(xlim)
+        axlist[0].grid(True)
         # removing labels
-        plt.gca().set_xticklabels([])
-        plt.gca().set_yticklabels([])
+        axlist[0].set_xticklabels([])
+        axlist[0].set_yticklabels([])
 
         # title
-        title = xcout._plottitle(prefix='Cross-corr. ', months=months)
-        plt.title(title)
+        if plot_title:
+            title = xcout._plottitle(prefix='Cross-corr. ', months=months)
+            axlist[0].set_title(title)
 
         # vmin, vmax
         vkwargs = {
@@ -509,55 +520,55 @@ class CrossCorrelation:
             'horizontalalignment': 'center',
             'bbox': dict(color='k', facecolor='white')}
         if vmin:
-            ylim = plt.ylim()
-            plt.plot(2 * [xcout.dist() / vmin], ylim, color='grey')
+            ylim = axlist[0].get_ylim()
+            axlist[0].plot(2 * [xcout.dist() / vmin], ylim, color='grey')
             xy = (xcout.dist() / vmin, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
-            plt.annotate(s='{0} km/s'.format(vmin), xy=xy, xytext=xy, **vkwargs)
-            plt.ylim(ylim)
+            axlist[0].annotate(s='{0} km/s'.format(vmin), xy=xy, xytext=xy, **vkwargs)
+            axlist[0].set_ylim(ylim)
 
         if vmax:
-            ylim = plt.ylim()
-            plt.plot(2 * [xcout.dist() / vmax], ylim, color='grey')
+            ylim = axlist[0].get_ylim()
+            axlist[0].plot(2 * [xcout.dist() / vmax], ylim, color='grey')
             xy = (xcout.dist() / vmax, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
-            plt.annotate(s='{0} km/s'.format(vmax), xy=xy, xytext=xy, **vkwargs)
-            plt.ylim(ylim)
+            axlist[0].annotate(s='{0} km/s'.format(vmax), xy=xy, xytext=xy, **vkwargs)
+            axlist[0].set_ylim(ylim)
 
         # plotting band-filtered cross-correlation
-        for iplot, (tmin, tmax) in enumerate(PLOTXCORR_BANDS, start=2):
-            plt.subplot(nplot, 1, iplot)
+        for ax, (tmin, tmax) in zip(axlist[1:], PLOTXCORR_BANDS):
+            lastplot = ax is axlist[-1]
+
             dataarray = psutils.bandpass(data=xcdata, df=1.0 / xcout._get_xcorr_dt(),
                                          tmin=tmin, tmax=tmax)
-            plt.plot(xcout.timearray, dataarray)
-            xy = (plt.xlim()[0] + 10, plt.ylim()[1] / 2)
-            plt.annotate(s='{tmin} - {tmax} s'.format(tmin=tmin, tmax=tmax),
-                         xy=xy, xytext=xy, bbox={'color': 'k', 'facecolor': 'white'})
-            plt.grid()
+            ax.plot(xcout.timearray, dataarray)
+            xy = (ax.get_xlim()[0] + 10, ax.get_ylim()[1] / 2)
+            ax.annotate(s='{tmin} - {tmax} s'.format(tmin=tmin, tmax=tmax),
+                        xy=xy, xytext=xy, bbox={'color': 'k', 'facecolor': 'white'})
+            ax.grid(True)
 
             # vmin, vmax
             if vmin:
-                ylim = plt.ylim()
-                plt.plot(2 * [xcout.dist() / vmin], ylim, color='grey')
-                plt.ylim(ylim)
+                ylim = ax.get_ylim()
+                ax.plot(2 * [xcout.dist() / vmin], ylim, color='grey')
+                ax.set_ylim(ylim)
             if vmax:
-                ylim = plt.ylim()
-                plt.plot(2 * [xcout.dist() / vmax], ylim, color='grey')
-                plt.ylim(ylim)
+                ylim = ax.get_ylim()
+                ax.plot(2 * [xcout.dist() / vmax], ylim, color='grey')
+                ax.set_ylim(ylim)
             # removing labels
-            if iplot < nplot:
-                plt.gca().set_xticklabels([])
-            plt.gca().set_yticklabels([])
+            if not lastplot:
+                ax.set_xticklabels([])
+            ax.set_yticklabels([])
             # xlims
-            if xlim:
-                plt.xlim(xlim)
+            ax.set_xlim(xlim)
             # axis title
-            if iplot == nplot:
-                plt.xlabel('Time (s)')
+            if lastplot:
+                ax.set_xlabel('Time (s)')
 
         if outfile:
-            plt.gcf().savefig(outfile, dpi=300, transparent=True)
+            axlist[0].gcf().savefig(outfile, dpi=300, transparent=True)
 
-        if nplot:
-            plt.show()
+        if fig:
+            fig.show()
 
     def FTAN(self, whiten=True, phase_corr=None, months=None, vgarray_init=None):
         """
@@ -802,82 +813,7 @@ class CrossCorrelation:
         # 1th subplot: plot of correlation in different frequencies
         # =========================================================
 
-        # todo: re-use plot_by_period_band() here
-
-        xlim = [0, 300]
-        vmin = 2.5
-        vmax = 5.0
-
-        # symmetrization
-        xcout = self.symmetrize(inplace=False)
-
-        # spectral whitening
-        if whiten:
-            xcout = xcout.whiten(inplace=False)
-
-        # cross-corr of desired months
-        xcdata = xcout._get_monthyears_xcdataarray(months=months)
-
-        # plotting original cross-correlation
-        axlist[0].plot(xcout.timearray, xcdata)
-        xy = (axlist[0].set_xlim()[0] + 10, axlist[0].set_ylim()[1] / 2)
-        axlist[0].annotate('Original data', xy=xy, xytext=xy,
-                           bbox={'color': 'k', 'facecolor': 'white'})
-
-        # xlims
-        if xlim:
-            axlist[0].set_xlim(xlim)
-        # removing labels
-        axlist[0].set_yticklabels([])
-
-        # vmin, vmax
-        vkwargs = {
-            'fontsize': 6,
-            'horizontalalignment': 'center',
-            'bbox': dict(color='k', facecolor='white')}
-        if vmin:
-            ylim = axlist[0].set_ylim()
-            axlist[0].plot(2 * [xcout.dist() / vmin], ylim, color='grey')
-            xy = (xcout.dist() / vmin, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
-            axlist[0].annotate(s='{0} km/s'.format(vmin), xy=xy, xytext=xy, **vkwargs)
-            axlist[0].set_ylim(ylim)
-
-        if vmax:
-            ylim = axlist[0].set_ylim()
-            axlist[0].plot(2 * [xcout.dist() / vmax], ylim, color='grey')
-            xy = (xcout.dist() / vmax, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
-            axlist[0].annotate(s='{0} km/s'.format(vmax), xy=xy, xytext=xy, **vkwargs)
-            axlist[0].set_ylim(ylim)
-
-        # plotting band-filtered cross-correlation
-        for iplot, (tmin, tmax) in enumerate(PLOTXCORR_BANDS, start=1):
-            dataarray = psutils.bandpass(data=xcdata, df=1.0 / xcout._get_xcorr_dt(),
-                                         tmin=tmin, tmax=tmax)
-            axlist[iplot].plot(xcout.timearray, dataarray)
-            xy = (axlist[iplot].set_xlim()[0] + 10, axlist[iplot].set_ylim()[1] / 2)
-            axlist[iplot].annotate(s='{tmin} - {tmax} s'.format(tmin=tmin, tmax=tmax),
-                                   xy=xy, xytext=xy,
-                                   bbox={'color': 'k', 'facecolor': 'white'})
-
-            # vmin, vmax
-            if vmin:
-                ylim = axlist[iplot].set_ylim()
-                axlist[iplot].plot(2 * [xcout.dist() / vmin], ylim, color='grey')
-                #axlist[iplot].set_ylim(ylim)
-            if vmax:
-                ylim = axlist[iplot].set_ylim()
-                axlist[iplot].plot(2 * [xcout.dist() / vmax], ylim, color='grey')
-                #axlist[iplot].set_ylim(ylim)
-            # removing labels
-            axlist[iplot].set_yticklabels([])
-            if iplot < len(PLOTXCORR_BANDS):
-                axlist[iplot].set_xticklabels([])
-            # xlims
-            if xlim:
-                axlist[iplot].set_xlim(xlim)
-            # axis title
-            if iplot == len(PLOTXCORR_BANDS):
-                axlist[iplot].set_xlabel('Time (s)')
+        self.plot_by_period_band(axlist=axlist, plot_title=False)
 
         # =====================
         # 2st subplot: raw FTAN
