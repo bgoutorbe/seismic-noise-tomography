@@ -310,7 +310,7 @@ def norm(u):
     return np.sqrt(u[0]**2 + u[1]**2 + u[2]**2)
 
 
-def basemap(ax=None, labels=True, fill=True, bbox=None):
+def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
     """
     Plot bas map: coasts and tectonic provinces
     """
@@ -362,10 +362,15 @@ def basemap(ax=None, labels=True, fill=True, bbox=None):
                         fontsize=10, weight='bold', rotation=angle)
 
     # setting up axes
-    ax.set_xlabel('longitude (deg)')
-    ax.set_ylabel('latitude (deg)')
     ax.set_aspect('equal')
-    ax.grid(True)
+    if axeslabels:
+        ax.set_xlabel('longitude (deg)')
+        ax.set_ylabel('latitude (deg)')
+        ax.grid(True)
+    else:
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.grid(False)
     if bbox:
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])

@@ -801,95 +801,96 @@ class CrossCorrelation:
         # preparing figure
         fig = plt.figure(figsize=figsize)
 
-        # subplot windows = original cross-correlation + band-filtered cross-correlations
-        subplot_windows = len(PLOTXCORR_BANDS) + 1
-        gs1 = gridspec.GridSpec(subplot_windows, 1, wspace=0, hspace=0)
+        # =======================================================
+        # 1th panel: cross-correlation (original and band-passed)
+        # =======================================================
+
+        gs1 = gridspec.GridSpec(len(PLOTXCORR_BANDS) + 1, 1, wspace=0.0, hspace=0.0)
         axlist = [fig.add_subplot(ss) for ss in gs1]
+        self.plot_by_period_band(axlist=axlist, plot_title=False, whiten=whiten)
 
-        gs2 = gridspec.GridSpec(1, 3, wspace=0)
-        axlist2 = [fig.add_subplot(ss) for ss in gs2]
+        # ===================
+        # 2st panel: raw FTAN
+        # ===================
 
-        # ==========================================================
-        # 1th subplot: plot of correlation in different frequencies
-        # =========================================================
-
-        self.plot_by_period_band(axlist=axlist, plot_title=False)
-
-        # =====================
-        # 2st subplot: raw FTAN
-        # =====================
+        gs2 = gridspec.GridSpec(1, 2, wspace=0.2, hspace=0.0)
+        ax = fig.add_subplot(gs2[0, 0])
 
         extent = (min(RAWFTAN_PERIODS), max(RAWFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
         m = np.log10(rawampl.transpose() ** 2)
-        axlist2[0].imshow(m, aspect='auto', origin='lower', extent=extent)
-        axlist2[0].set_xlabel("period (sec)")
-        axlist2[0].set_ylabel("Velocity (km/sec)")
+        ax.imshow(m, aspect='auto', origin='lower', extent=extent)
+        ax.set_xlabel("period (sec)")
+        ax.set_ylabel("Velocity (km/sec)")
         # saving limits
-        xlim = axlist2[0].get_xlim()
-        ylim = axlist2[0].get_ylim()
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
         # raw & clean vg curves
-        axlist2[0].plot(rawvg.periods, rawvg.v, color='blue',
-                        linestyle='dashed', lw=2, label='raw FTAN')
-        axlist2[0].plot(cleanvg.periods, cleanvg.v, color='black',
-                        lw=2, label='clean FTAN')
-        axlist2[0].legend()
+        ax.plot(rawvg.periods, rawvg.v, color='blue', linestyle='dashed',
+                lw=2, label='raw FTAN')
+        ax.plot(cleanvg.periods, cleanvg.v, color='black',
+                lw=2, label='clean FTAN')
+        ax.legend()
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
-        axlist2[0].plot([cutoffperiod, cutoffperiod], ylim, color='grey')
+        ax.plot([cutoffperiod, cutoffperiod], ylim, color='grey')
         # setting initial extent
-        axlist2[0].set_xlim(xlim)
-        axlist2[0].set_ylim(ylim)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
 
-        # =======================
-        # 3nd subplot: clean FTAN
-        # =======================
+        # =====================
+        # 3nd panel: clean FTAN
+        # =====================
+        ax = fig.add_subplot(gs2[0, 1])
 
         extent = (min(CLEANFTAN_PERIODS), max(CLEANFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
         m = np.log10(cleanampl.transpose() ** 2)
-        axlist2[1].imshow(m, aspect='auto', origin='lower', extent=extent)
-        axlist2[1].set_xlabel("period (sec)")
-        axlist2[1].set_ylabel("Velocity (km/sec)")
+        ax.imshow(m, aspect='auto', origin='lower', extent=extent)
+        ax.set_xlabel("period (sec)")
+        ax.set_ylabel("Velocity (km/sec)")
         # saving limits
-        xlim = axlist2[1].get_xlim()
-        ylim = axlist2[1].get_ylim()
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
         # trimester vg curves
         ntrimester = len(cleanvg.v_trimesters)
         for i, vg_trimester in enumerate(cleanvg.filtered_trimester_vels()):
             label = '{} trimester FTANs'.format(ntrimester) if i == 0 else None
-            axlist2[1].plot(cleanvg.periods, vg_trimester, color='gray', label=label)
+            ax.plot(cleanvg.periods, vg_trimester, color='gray', label=label)
 
         # clean vg curve + error bars
         vels, sdevs = cleanvg.filtered_vels_sdevs()
-        axlist2[1].errorbar(x=cleanvg.periods, y=vels, yerr=sdevs,
-                            color='black', lw=2, label='clean FTAN')
-        axlist2[1].legend()
+        ax.errorbar(x=cleanvg.periods, y=vels, yerr=sdevs, color='black',
+                    lw=2, label='clean FTAN')
+        ax.legend()
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
-        axlist2[1].plot([cutoffperiod, cutoffperiod], ylim, color='grey')
+        ax.plot([cutoffperiod, cutoffperiod], ylim, color='grey')
         # setting initial extent
-        axlist2[1].set_xlim(xlim)
-        axlist2[1].set_ylim(ylim)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
 
-        # ========================================
-        # 4rd subplot: tectonic provinces and pair
-        # ========================================
+        # ======================================
+        # 4rd panel: tectonic provinces and pair
+        # ======================================
 
-        psutils.basemap(axlist2[2], labels=False)
+        gs3 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0.0)
+        ax = fig.add_subplot(gs3[0, 0])
+
+        psutils.basemap(ax, labels=False, axeslabels=False)
         x = (self.station1.coord[0], self.station2.coord[0])
         y = (self.station1.coord[1], self.station2.coord[1])
         s = (self.station1.name, self.station2.name)
-        axlist2[2].plot(x, y, '^-', color='k', ms=10, mfc='w', mew=1)
+        ax.plot(x, y, '^-', color='k', ms=10, mfc='w', mew=1)
         for lon, lat, label in zip(x, y, s):
-            axlist2[2].text(lon, lat, label, ha='center', va='bottom',
-                            fontsize=7, weight='bold')
-        axlist2[2].set_xlim(bbox[:2])
-        axlist2[2].set_ylim(bbox[2:])
+            ax.text(lon, lat, label, ha='center', va='bottom', fontsize=7, weight='bold')
+        ax.set_xlim(bbox[:2])
+        ax.set_ylim(bbox[2:])
 
         # adjusting sizes
-        gs1.tight_layout(fig, rect=[0, 0.03, 0.25, 0.95])
-        gs2.tight_layout(fig, rect=[0.25, 0.03, 1, 0.95])
+        gs1.update(left=0.02, right=0.25)
+        gs2.update(left=0.30, right=0.83)
+        gs3.update(left=0.85, right=0.98)
 
         # figure title
         title = self._FTANplot_title(whiten=whiten, months=months)
