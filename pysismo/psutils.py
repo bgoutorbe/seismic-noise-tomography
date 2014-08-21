@@ -17,13 +17,10 @@ import pyproj
 SKIPLOCS = ('50',)
 
 # Map parameters
-BASEDIR = "/home/bruno/Data/Recherche/Utilitaires"
-COAST_SHP = os.path.join(
-    BASEDIR, "Cotes/World borders (shp, thematicmapping.org)/SouthAmericaCoasts.shp")
-TECTO_SHP = os.path.join(
-    BASEDIR, "Cartes_tecto_geol_sismo/Amerique du sud/Tectonic elements/Tecto_dissolved")
-TECTO_LABELS = os.path.join(
-    BASEDIR, "Cartes_tecto_geol_sismo/Amerique du sud/Tectonic elements/labels")
+SHP_BASEDIR = '../shapefiles'
+COAST_SHP = os.path.join(SHP_BASEDIR, 'SouthAmericaCoasts.shp')
+TECTO_SHP = os.path.join(SHP_BASEDIR, 'SouthAmericaTectonicElements.shp')
+TECTO_LABELS = os.path.join(SHP_BASEDIR, 'SouthAmericaTectonicElementsLabels.shp')
 TECTO_COLORS = {
     'Archean': (0.98, 0.88, 1, 1),
     'Phanerozoic': (1, 0.988, 0.831, 1),
