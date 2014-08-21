@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 import pyproj
+import ConfigParser
 
 # locations to skip when cleaning stream
 SKIPLOCS = ('50',)
@@ -52,6 +53,40 @@ def filelist(basedir, ext=None, subdirs=True):
                 for f in sublist:
                     files.append(os.path.join(d, f))
     return files
+
+
+def read_config_file(basedir='.', ext='cnf', verbose=True):
+    """
+    Reads a configuration file and returns an instance of ConfigParser:
+
+    First, looks for files in *basedir* with extension *ext*.
+    Asks user to select a file if several files are found,
+    and parses it using ConfigParser module.
+
+    @rtype: L{ConfigParser.ConfigParser}
+    """
+    config_files = filelist(basedir=basedir, ext=ext, subdirs=False)
+
+    if not config_files:
+        raise Exception("No configuration file found!")
+
+    if len(config_files) == 1:
+        # only one configuration file
+        config_file = config_files[0]
+    else:
+        print "Select a configuration file:"
+        for i, f in enumerate(config_files, start=1):
+            print "{} - {}".format(i, f)
+        res = int(raw_input(''))
+        config_file = config_files[res - 1]
+
+    if verbose:
+        print "Reading configuration file: {}".format(config_file)
+
+    config = ConfigParser.ConfigParser()
+    config.read(config_file)
+
+    return config
 
 
 def openandbackup(filename, mode='w'):
