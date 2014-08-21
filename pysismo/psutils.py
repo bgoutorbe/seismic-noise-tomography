@@ -17,10 +17,9 @@ import pyproj
 SKIPLOCS = ('50',)
 
 # Map parameters
-SHP_BASEDIR = '../shapefiles'
-COAST_SHP = os.path.join(SHP_BASEDIR, 'SouthAmericaCoasts.shp')
-TECTO_SHP = os.path.join(SHP_BASEDIR, 'SouthAmericaTectonicElements.shp')
-TECTO_LABELS = os.path.join(SHP_BASEDIR, 'SouthAmericaTectonicElementsLabels.shp')
+COAST_SHP = './shapefiles/SouthAmericaCoasts.shp'
+TECTO_SHP = './shapefiles/SouthAmericaTectonicElements.shp'
+TECTO_LABELS = './shapefiles/SouthAmericaTectonicElementsLabels.shp'
 TECTO_COLORS = {
     'Archean': (0.98, 0.88, 1, 1),
     'Phanerozoic': (1, 0.988, 0.831, 1),
