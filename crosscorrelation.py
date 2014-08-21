@@ -25,7 +25,16 @@ import numpy as np
 from numpy.fft import rfft, irfft
 import os
 import warnings
-import datetime as dt
+
+# ====================================================
+# parsing configuration file to import some parameters
+# ====================================================
+
+from pysismo.psconfig import (
+    CROSSCORR_DIR, USE_DATALESSPAZ, USE_STATIONXML, FIRSTDAY, LASTDAY, MINFILL,
+    FREQMIN, FREQMAX, CORNERS, ZEROPHASE, PERIOD_RESAMPLE, ONEBIT_NORM,
+    FREQMIN_EARTHQUAKE, FREQMAX_EARTHQUAKE, WINDOW_TIME, WINDOW_FREQ, XCORR_TMAX,
+    CALC_SPECTRA, SPECTRA_STATIONS, SPECTRA_FIRSTDAY, SPECTRA_LASTDAY, PLOT_TRACES)
 
 # ========================
 # Constants and parameters
@@ -40,66 +49,6 @@ XC_STATIONS = None
 
 # Simulated instrument
 PAZ_SIM = cornFreq2Paz(0.01)  # no attenuation up to period 100 s
-
-# ==========================
-# parsing configuration file
-# ==========================
-
-config = psutils.read_config_file(basedir='.', ext='cnf', verbose=True)
-
-# output dir
-CROSSCORR_DIR = config.get('paths', 'CROSSCORR_DIR')
-
-# calc spectra (instead of cross-corr)?
-CALC_SPECTRA = config.getboolean('cross-correlation', 'CALC_SPECTRA')
-
-# use dataless files or stationXML files to remove instrument response?
-USE_DATALESSPAZ = config.getboolean('cross-correlation', 'USE_DATALESSPAZ')
-USE_STATIONXML = config.getboolean('cross-correlation', 'USE_STATIONXML')
-
-# first and last day, minimum data fill per day
-FIRSTDAY = config.get('cross-correlation', 'FIRSTDAY')
-FIRSTDAY = UTCDateTime(dt.datetime.strptime(FIRSTDAY, '%d/%m/%Y'))
-LASTDAY = config.get('cross-correlation', 'LASTDAY')
-LASTDAY = UTCDateTime(dt.datetime.strptime(LASTDAY, '%d/%m/%Y'))
-MINFILL = config.getfloat('cross-correlation', 'MINFILL')
-
-# band-pass parameters
-PERIODMIN = config.getfloat('cross-correlation', 'PERIODMIN')
-PERIODMAX = config.getfloat('cross-correlation', 'PERIODMAX')
-FREQMIN = 1.0 / PERIODMAX
-FREQMAX = 1.0 / PERIODMIN
-CORNERS = config.getint('cross-correlation', 'CORNERS')
-ZEROPHASE = config.getboolean('cross-correlation', 'ZEROPHASE')
-# resample period (to decimate traces, after band-pass)
-PERIOD_RESAMPLE = config.getfloat('cross-correlation', 'PERIOD_RESAMPLE')
-
-# Time-normalization parameters:
-ONEBIT_NORM = config.getboolean('cross-correlation', 'ONEBIT_NORM')
-# earthquakes period bands
-PERIODMIN_EARTHQUAKE = config.getfloat('cross-correlation', 'PERIODMIN_EARTHQUAKE')
-PERIODMAX_EARTHQUAKE = config.getfloat('cross-correlation', 'PERIODMAX_EARTHQUAKE')
-FREQMIN_EARTHQUAKE = 1.0 / PERIODMAX_EARTHQUAKE
-FREQMAX_EARTHQUAKE = 1.0 / PERIODMIN_EARTHQUAKE
-# time window (s) to smooth data in earthquake band
-# and calculate time-norm weights
-WINDOW_TIME = 0.5 * PERIODMAX_EARTHQUAKE
-
-# frequency window (Hz) to smooth ampl spectrum
-# and calculate spect withening weights
-WINDOW_FREQ = config.getfloat('cross-correlation', 'WINDOW_FREQ')
-
-# Max time window (s) for cross-correlation
-XCORR_TMAX = config.getfloat('cross-correlation', 'XCORR_TMAX')
-
-# Parameters for spectrum calculation
-SPECTRA_STATIONS = config.get('cross-correlation', 'SPECTRA_STATIONS').split(',')
-SPECTRA_FIRSTDAY = config.get('cross-correlation', 'SPECTRA_FIRSTDAY')
-SPECTRA_FIRSTDAY = UTCDateTime(dt.datetime.strptime(SPECTRA_FIRSTDAY, '%d/%m/%Y'))
-SPECTRA_LASTDAY = config.get('cross-correlation', 'SPECTRA_LASTDAY')
-SPECTRA_LASTDAY = UTCDateTime(dt.datetime.strptime(SPECTRA_LASTDAY, '%d/%m/%Y'))
-# plot traces OF LAST DAY along with spectra?
-PLOT_TRACES = config.getboolean('cross-correlation', 'PLOT_TRACES')
 
 # ==========
 # Out prefix

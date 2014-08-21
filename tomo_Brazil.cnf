@@ -22,7 +22,7 @@ USE_STATIONXML = True
 FIRSTDAY = 1/1/2000
 LASTDAY = 31/3/2012
 
-MINFILL = 0.99  # minimum data fill within day
+MINFILL = 0.99  ; minimum data fill within day
 
 # Band-pass parameters
 
@@ -30,25 +30,25 @@ PERIODMIN = 7.0
 PERIODMAX = 150.0
 CORNERS = 2
 ZEROPHASE = True
-PERIOD_RESAMPLE = 1.0  # Resample period (to decimate traces, after band-pass)
+PERIOD_RESAMPLE = 1.0  ; Resample period (to decimate traces, after band-pass)
 
 # Time-normalization parameters:
 
-ONEBIT_NORM = False  # one-bit normalization?
-PERIODMIN_EARTHQUAKE = 15.0  # earthquakes
-PERIODMAX_EARTHQUAKE = 50.0  # period bands
+ONEBIT_NORM = False          ; one-bit normalization?
+PERIODMIN_EARTHQUAKE = 15.0  ; earthquakes period bands
+PERIODMAX_EARTHQUAKE = 50.0
 
 # frequency window (Hz) to smooth ampl spectrum
 # and calculate spect withening weights
 
 WINDOW_FREQ = 0.0001
 
-XCORR_TMAX = 2000  # Max time window (s) for cross-correlation
+XCORR_TMAX = 2000  ; Max time window (s) for cross-correlation
 
 # spectra parameters
 
-CALC_SPECTRA = False  # plot spectra (instead of calculating cross-correlation)?
+CALC_SPECTRA = False  ; plot spectra (instead of calculating cross-correlation)?
 SPECTRA_STATIONS = NUPB, PACB
 SPECTRA_FIRSTDAY = 1/5/2002
 SPECTRA_LASTDAY = 2/5/2002
-PLOT_TRACES = True  # plot traces OF LAST DAY along with spectra?
+PLOT_TRACES = True  ; plot traces OF LAST DAY along with spectra?
