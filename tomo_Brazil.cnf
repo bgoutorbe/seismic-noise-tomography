@@ -10,45 +10,31 @@ CROSSCORR_DIR = ../Cross-correlation
 [cross-correlation]
 # =================
 
-# use dataless files, stationXML files or both 
-# to remove instrument response?
+USE_DATALESSPAZ = False        ; use dataless files to remove instrument response?
+USE_STATIONXML = True          ; use stationXML files to remove instrument response?
 
-USE_DATALESSPAZ = False
-USE_STATIONXML = True
+FIRSTDAY = 1/1/2000            ; first day of cross-correlation (d/m/y)
+LASTDAY = 31/3/2012            ; last day of cross-correlation (d/m/y)
 
-# first day and last day of cross-correlation,
-# in the format d/m/y
+MINFILL = 0.99                 ; minimum data fill within day
 
-FIRSTDAY = 1/1/2000
-LASTDAY = 31/3/2012
-
-MINFILL = 0.99  ; minimum data fill within day
-
-# Band-pass parameters
-
-PERIODMIN = 7.0
+PERIODMIN = 7.0                ; bandpass parameters
 PERIODMAX = 150.0
 CORNERS = 2
 ZEROPHASE = True
-PERIOD_RESAMPLE = 1.0  ; Resample period (to decimate traces, after band-pass)
+PERIOD_RESAMPLE = 1.0          ; resample period to decimate traces, after band-pass
 
-# Time-normalization parameters:
-
-ONEBIT_NORM = False          ; one-bit normalization?
-PERIODMIN_EARTHQUAKE = 15.0  ; earthquakes period bands
+ONEBIT_NORM = False            ; one-bit normalization?
+PERIODMIN_EARTHQUAKE = 15.0    ; earthquakes periods band
 PERIODMAX_EARTHQUAKE = 50.0
 
-# frequency window (Hz) to smooth ampl spectrum
-# and calculate spect withening weights
+WINDOW_FREQ = 0.0001           ; freq window (Hz) to smooth ampl spectrum
+                               ; and calculate spect withening weights
 
-WINDOW_FREQ = 0.0001
+XCORR_TMAX = 2000              ; max time window (s) for cross-correlation
 
-XCORR_TMAX = 2000  ; Max time window (s) for cross-correlation
-
-# spectra parameters
-
-CALC_SPECTRA = False  ; plot spectra (instead of calculating cross-correlation)?
-SPECTRA_STATIONS = NUPB, PACB
+CALC_SPECTRA = False           ; plot spectra (instead of calculating cross-corr)?
+SPECTRA_STATIONS = NUPB, PACB  ; spectra parameters
 SPECTRA_FIRSTDAY = 1/5/2002
 SPECTRA_LASTDAY = 2/5/2002
-PLOT_TRACES = True  ; plot traces OF LAST DAY along with spectra?
+PLOT_TRACES = True             ; plot traces OF LAST DAY along with spectra?
