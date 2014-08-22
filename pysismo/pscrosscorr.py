@@ -38,7 +38,7 @@ import matplotlib.gridspec as gridspec
 # parsing configuration file to import some parameters
 # ====================================================
 from psconfig import (
-    CROSSCORR_DIR, SPECTSNR_BANDS, PLOTXCORR_BANDS,
+    CROSSCORR_DIR, FTAN_DIR, SPECTSNR_BANDS, PLOTXCORR_BANDS,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA,
     BBOX_LARGE, BBOX_SMALL)
 
@@ -1398,7 +1398,8 @@ class CrossCorrelationCollection(AttribDict):
               minSNR=None, minspectSNR=None, monthyears=None):
         """
         Export raw-clean FTAN plots to pdf (one page per pair)
-        and clean dispersion curves to pickle file.
+        and clean dispersion curves to pickle file, in dir
+        *FTAN_DIR*
 
         @type prefix: str or unicode
         @type suffix: str or unicode
@@ -1429,7 +1430,7 @@ class CrossCorrelationCollection(AttribDict):
             parts = [prefix]
         if suffix:
             parts.append(suffix)
-        basename = os.path.join(CROSSCORR_DIR, '_'.join(parts))
+        basename = os.path.join(FTAN_DIR, '_'.join(parts))
 
         # opening pdf file
         pdf = PdfPages(basename + '.pdf')

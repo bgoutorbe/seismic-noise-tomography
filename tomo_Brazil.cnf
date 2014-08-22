@@ -2,11 +2,12 @@
 [paths]
 #======
 
-CROSSCORR_DIR = ../Cross-correlation  ; dir of cross-correlation results
-MSEED_DIR = ../IRIS data              ; dir of miniseed files
-STATIONXML_DIR = ../StationXML files  ; dir of StationXML files
-DATALESS_DIR = ../Dataless seed       ; dir of dataless files
+MSEED_DIR = ../IRIS data                     ; dir of miniseed files
+STATIONXML_DIR = ../StationXML files         ; dir of StationXML files
+DATALESS_DIR = ../Dataless seed              ; dir of dataless files
 
+CROSSCORR_DIR = ./output/cross-correlation  ; dir of cross-correlation results
+FTAN_DIR = ./output/FTAN                    ; dir of FTAN results (including dispersion curves)
 
 #==================
 [cross-correlation]

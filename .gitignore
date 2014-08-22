@@ -16,3 +16,5 @@ test_elipsoid.py
 *.pyc
 *~
 .fuse_hidden*
+/backup/
+/output/

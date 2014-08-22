@@ -56,11 +56,15 @@ config = select_and_parse_config_file(basedir='.', ext='cnf', verbose=True)
 # paths
 # -----
 
-# dir of cross-correlation results, miniseed files and dataless files
-CROSSCORR_DIR = config.get('paths', 'CROSSCORR_DIR')
+# input dirs
 MSEED_DIR = config.get('paths', 'MSEED_DIR')
 STATIONXML_DIR = config.get('paths', 'STATIONXML_DIR')
 DATALESS_DIR = config.get('paths', 'DATALESS_DIR')
+
+# output dirs
+CROSSCORR_DIR = config.get('paths', 'CROSSCORR_DIR')
+FTAN_DIR = config.get('paths', 'FTAN_DIR')
+
 
 # --------------------------------------
 # cross-correlation / spectra parameters

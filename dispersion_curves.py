@@ -8,8 +8,11 @@ from pysismo import pscrosscorr
 import glob
 import os
 
+# parsing configuration file to import dir of cross-corr results
+from pysismo.psconfig import CROSSCORR_DIR
+
 # loading cross-correlations
-flist = sorted(glob.glob(pathname='../Cross-correlation/xcorr*.pickle*'))
+flist = sorted(glob.glob(os.path.join(CROSSCORR_DIR, 'xcorr*.pickle*')))
 print 'Select file containing cross-correlations:'
 print '\n'.join('{} - {}'.format(i, os.path.basename(f)) for i, f in enumerate(flist))
 pickle_file = flist[int(raw_input('\n'))]
