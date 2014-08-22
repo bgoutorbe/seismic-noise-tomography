@@ -13,5 +13,6 @@ get_Iris_earthquakes.py
 get_Iris_stations.py
 get_Iris_stationsinfos.py
 test_elipsoid.py
-pysismo/*.pyc
-pysismo/*.*~
+*.pyc
+*~
+.fuse_hidden*

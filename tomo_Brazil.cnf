@@ -1,40 +1,98 @@
-# =====
+#======
 [paths]
-# =====
+#======
 
-# dir of cross-correlation results
-CROSSCORR_DIR = ../Cross-correlation
+CROSSCORR_DIR = ../Cross-correlation  ; dir of cross-correlation results
+MSEED_DIR = ../IRIS data              ; dir of miniseed files
+STATIONXML_DIR = ../StationXML files  ; dir of StationXML files
+DATALESS_DIR = ../Dataless seed       ; dir of dataless files
 
 
-# =================
+#==================
 [cross-correlation]
-# =================
+#==================
 
-USE_DATALESSPAZ = False        ; use dataless files to remove instrument response?
-USE_STATIONXML = True          ; use stationXML files to remove instrument response?
+USE_DATALESSPAZ = False             ; use dataless files to remove instrument response?
+USE_STATIONXML = True               ; use stationXML files to remove instrument response?
 
-FIRSTDAY = 1/1/2000            ; first day of cross-correlation (d/m/y)
-LASTDAY = 31/3/2012            ; last day of cross-correlation (d/m/y)
+FIRSTDAY = 1/1/2000                 ; first day of cross-correlation (d/m/y)
+LASTDAY = 31/3/2012                 ; last day of cross-correlation (d/m/y)
+MINFILL = 0.99                      ; minimum data fill within day
 
-MINFILL = 0.99                 ; minimum data fill within day
+CROSSCORR_STATIONS_SUBSET = null    ; subset of stations (null if all, else JSON list)
+CROSSCORR_TMAX = 2000               ; max time window (s) for cross-correlation
+CROSSCORR_SKIPLOCS = ["50"]         ; locations to skip (JSON list)
 
-PERIODMIN = 7.0                ; bandpass parameters
+PERIODMIN = 7.0                     ; bandpass parameters
 PERIODMAX = 150.0
 CORNERS = 2
 ZEROPHASE = True
-PERIOD_RESAMPLE = 1.0          ; resample period to decimate traces, after band-pass
+PERIOD_RESAMPLE = 1.0               ; resample period to decimate traces, after band-pass
 
-ONEBIT_NORM = False            ; one-bit normalization?
-PERIODMIN_EARTHQUAKE = 15.0    ; earthquakes periods band
+ONEBIT_NORM = False                 ; one-bit normalization?
+PERIODMIN_EARTHQUAKE = 15.0         ; earthquakes periods band
 PERIODMAX_EARTHQUAKE = 50.0
 
-WINDOW_FREQ = 0.0001           ; freq window (Hz) to smooth ampl spectrum
-                               ; and calculate spect withening weights
+WINDOW_FREQ = 0.0001                ; freq window (Hz) to smooth ampl spectrum
 
-XCORR_TMAX = 2000              ; max time window (s) for cross-correlation
-
-CALC_SPECTRA = False           ; plot spectra (instead of calculating cross-corr)?
-SPECTRA_STATIONS = NUPB, PACB  ; spectra parameters
+CALC_SPECTRA = False                ; plot spectra (instead of calculating cross-corr)?
+SPECTRA_STATIONS = ["NUPB", "PACB"] ; stations (JSON list)
 SPECTRA_FIRSTDAY = 1/5/2002
 SPECTRA_LASTDAY = 2/5/2002
-PLOT_TRACES = True             ; plot traces OF LAST DAY along with spectra?
+PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra?
+
+
+#=====
+[FTAN]
+#=====
+
+# period bands to plot spectral SNR and estimate min spectral SNR (JSON list)
+SPECTSNR_BANDS = [[5, 14], [10, 25], [15, 35]]
+
+# period bands to plot band-passed cross-correlation
+PLOTXCORR_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
+
+# periods and velocities of FTAN analysis: start, stop and step
+RAWFTAN_PERIODS_STARTSTOPSTEP = [4.0, 45.1, 1.0]
+CLEANFTAN_PERIODS_STARTSTOPSTEP = [7.0, 20.1, 0.5]
+FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
+
+# smoothing parameter of FTAN analysis
+FTAN_ALPHA = 20
+
+# Suggested values from bibliography:
+#
+# Shapiro et al. [2005], S California: curves 6-18 s, maps 7.5-15 s, extension ~5-10°
+# SPECTSNR_BANDS = [[7, 10], [10, 20]]
+# PLOTXCORR_BANDS = [[7, 15], [10, 20], [15, 25]]
+#
+# Yang et al. [2007], Europe: curves and maps 8-50 s, extension ~30°
+# SPECTSNR_BANDS = [[8, 25], [20, 50], [33, 70]]
+# PLOTXCORR_BANDS = [[8, 25], [20, 50], [33, 67], [50, 100], [70, 150]]
+# RAWFTAN_PERIODS = np.arange[4.0, 65.1, 1.0]
+#
+# Lin et al. [2007], New Zealand: curves 5-50 s, maps 7-25 s, extension ~15°
+# SPECTSNR_BANDS = [[5, 14], [10, 25], [15, 35]]
+# PLOTXCORR_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
+
+
+#=====
+[maps]
+#=====
+
+# paths to shapefiles (coasts, tectonic provinces and labels)
+
+COAST_SHP = ./shapefiles/SouthAmericaCoasts.shp
+TECTO_SHP = ./shapefiles/SouthAmericaTectonicElements.shp
+TECTO_LABELS = ./shapefiles/SouthAmericaTectonicElementsLabels.shp
+
+# colors of tectonic provinces (JSON dict)
+
+TECTO_COLORS = {
+    "Archean": [0.98, 0.88, 1, 1],
+    "Phanerozoic": [1, 0.988, 0.831, 1],
+    "Neoproterozoic": "0.9"
+    }
+
+BBOX_LARGE = [-70, -30, -32, 8]  ; bounding box of (large) global maps (min/max lon, min/max lat)
+BBOX_SMALL = [-65, -35, -29, 1]  ; bounding box of (small) inset maps (min/max lon, min/max lat)

@@ -18,7 +18,6 @@ between pairs of stations after:
 from pysismo import pscrosscorr, pserrors, psspectrum, psstation, psutils, psfortran
 import obspy.core
 import obspy.core.trace
-from obspy.core import UTCDateTime
 from obspy.signal import cornFreq2Paz
 import obspy.xseed
 import numpy as np
@@ -31,10 +30,11 @@ import warnings
 # ====================================================
 
 from pysismo.psconfig import (
-    CROSSCORR_DIR, USE_DATALESSPAZ, USE_STATIONXML, FIRSTDAY, LASTDAY, MINFILL,
-    FREQMIN, FREQMAX, CORNERS, ZEROPHASE, PERIOD_RESAMPLE, ONEBIT_NORM,
-    FREQMIN_EARTHQUAKE, FREQMAX_EARTHQUAKE, WINDOW_TIME, WINDOW_FREQ, XCORR_TMAX,
-    CALC_SPECTRA, SPECTRA_STATIONS, SPECTRA_FIRSTDAY, SPECTRA_LASTDAY, PLOT_TRACES)
+    CROSSCORR_DIR, USE_DATALESSPAZ, USE_STATIONXML, CROSSCORR_STATIONS_SUBSET,
+    FIRSTDAY, LASTDAY, MINFILL, FREQMIN, FREQMAX, CORNERS, ZEROPHASE, PERIOD_RESAMPLE,
+    ONEBIT_NORM, FREQMIN_EARTHQUAKE, FREQMAX_EARTHQUAKE, WINDOW_TIME, WINDOW_FREQ,
+    CROSSCORR_TMAX, CALC_SPECTRA, SPECTRA_STATIONS, SPECTRA_FIRSTDAY, SPECTRA_LASTDAY,
+    PLOT_TRACES)
 
 # ========================
 # Constants and parameters
@@ -43,9 +43,6 @@ from pysismo.psconfig import (
 EPS = 1.0E-6
 ONEDAY = 3600 * 24
 EDGE = 3600
-
-# subset of stations to cross-correlate (None if all)
-XC_STATIONS = None
 
 # Simulated instrument
 PAZ_SIM = cornFreq2Paz(0.01)  # no attenuation up to period 100 s
@@ -61,7 +58,7 @@ if USE_STATIONXML:
     responsefrom.append('xmlresponse')
 OUTPREFIX_PARTS = [
     'xcorr',
-    '-'.join(s for s in XC_STATIONS) if XC_STATIONS else None,
+    '-'.join(s for s in CROSSCORR_STATIONS_SUBSET) if CROSSCORR_STATIONS_SUBSET else None,
     '{}-{}'.format(FIRSTDAY.year, LASTDAY.year),
     '1bitnorm' if ONEBIT_NORM else None,
     '+'.join(responsefrom)
@@ -122,8 +119,8 @@ for day in daylist:
     month_stations = sorted(sta for sta in stations if month_subdir in sta.subdirs)
 
     # subset if stations (if provided)
-    if XC_STATIONS:
-        month_stations = [sta for sta in month_stations if sta.name in XC_STATIONS]
+    if CROSSCORR_STATIONS_SUBSET:
+        month_stations = [sta for sta in month_stations if sta.name in CROSSCORR_STATIONS_SUBSET]
 
     for istation, station in enumerate(month_stations):
         assert isinstance(station, psstation.Station)
@@ -146,7 +143,7 @@ for day in daylist:
 
         # Removing traces from locations to skip,
         # and traces not from 1st loc if several locs
-        psutils.clean_stream(st, skiplocs=psutils.SKIPLOCS)
+        psutils.clean_stream(st, skiplocs=psutils.CROSSCORR_SKIPLOCS)
 
         # Data fill for current day (also to verify nb of traces)
         fill = psutils.get_fill(st, starttime=day, endtime=day + ONEDAY)
@@ -326,7 +323,7 @@ for day in daylist:
     if not CALC_SPECTRA:
         print '\nStacking cross-correlations'
         xc.add(tracedict=tracedict, stations=stations,
-               xcorr_tmax=XCORR_TMAX, verbose=True)
+               xcorr_tmax=CROSSCORR_TMAX, verbose=True)
 
 # plotting & writing cross-correlation
 if not CALC_SPECTRA:

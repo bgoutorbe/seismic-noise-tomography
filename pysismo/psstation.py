@@ -14,10 +14,10 @@ from copy import copy
 import itertools as it
 import numpy as np
 
-# defaults
-MSEED_DIR = '../IRIS data'              # miniseed dir
-STATIONXML_DIR = '../StationXML files'  # StationXML dir
-DATALESS_DIR = '../Dataless seed'       # Dataless seed dir
+# ====================================================
+# parsing configuration file to import some parameters
+# ====================================================
+from psconfig import MSEED_DIR, STATIONXML_DIR, DATALESS_DIR
 
 
 class Station:

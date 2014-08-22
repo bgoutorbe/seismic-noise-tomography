@@ -14,18 +14,10 @@ from matplotlib.collections import PatchCollection
 import pyproj
 import ConfigParser
 
-# locations to skip when cleaning stream
-SKIPLOCS = ('50',)
-
-# Map parameters
-COAST_SHP = './shapefiles/SouthAmericaCoasts.shp'
-TECTO_SHP = './shapefiles/SouthAmericaTectonicElements.shp'
-TECTO_LABELS = './shapefiles/SouthAmericaTectonicElementsLabels.shp'
-TECTO_COLORS = {
-    'Archean': (0.98, 0.88, 1, 1),
-    'Phanerozoic': (1, 0.988, 0.831, 1),
-    'Neoproterozoic': '0.9'
-}
+# ====================================================
+# parsing configuration file to import some parameters
+# ====================================================
+from psconfig import CROSSCORR_SKIPLOCS, COAST_SHP, TECTO_SHP, TECTO_LABELS, TECTO_COLORS
 
 # reference elipsoid to calculate distance
 wgs84 = pyproj.Geod(ellps='WGS84')
@@ -108,7 +100,7 @@ def get_fill(st, starttime=None, endtime=None):
     return fill
 
 
-def clean_stream(stream, skiplocs=SKIPLOCS, verbose=False):
+def clean_stream(stream, skiplocs=CROSSCORR_SKIPLOCS, verbose=False):
     """
     1 - Removes traces whose location is in skiplocs.
     2 - Select trace from 1st location if several ids.
@@ -117,6 +109,9 @@ def clean_stream(stream, skiplocs=SKIPLOCS, verbose=False):
     @type skiplocs: tuple of str
     @rtype: None
     """
+
+    if not skiplocs:
+        skiplocs = []
 
     # removing traces of stream from locations to skip
     for tr in [tr for tr in stream if tr.stats.location in skiplocs]:

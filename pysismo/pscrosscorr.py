@@ -34,43 +34,20 @@ import matplotlib as mpl
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.gridspec as gridspec
 
+# ====================================================
+# parsing configuration file to import some parameters
+# ====================================================
+from psconfig import (
+    CROSSCORR_DIR, SPECTSNR_BANDS, PLOTXCORR_BANDS,
+    RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA,
+    BBOX_LARGE, BBOX_SMALL)
+
+# ========================
+# Constants and parameters
+# ========================
 
 EPS = 1.0e-5
 ONESEC = dt.timedelta(seconds=1)
-
-# default cross-corr dir
-XCORR_DIR = '../Cross-correlation'
-
-# period bands for spectral SNR and xcorr vs period
-# center periods and velocities of FTAN analysis
-
-# Shapiro et al. [2005], S California: curves 6-18 s, maps 7.5-15 s, extension ~5-10°
-SPECTSNR_BANDS = [(7, 10), (10, 20)]
-PLOTXCORR_BANDS = [(7, 15), (10, 20), (15, 25)]
-RAWFTAN_PERIODS = np.arange(4.0, 35.1, 0.5)
-CLEANFTAN_PERIODS = np.arange(7.0, 20.1, 0.5)
-FTAN_VELOCITIES = np.arange(2.0, 5.51, 0.01)
-
-# Yang et al. [2007], Europe: curves and maps 8-50 s, extension ~30°
-SPECTSNR_BANDS = [(8, 25), (20, 50), (33, 70)]
-PLOTXCORR_BANDS = [(8, 25), (20, 50), (33, 67), (50, 100), (70, 150)]
-RAWFTAN_PERIODS = np.arange(4.0, 65.1, 1.0)
-CLEANFTAN_PERIODS = np.arange(7.0, 50.1, 1.0)
-FTAN_VELOCITIES = np.arange(2.0, 5.51, 0.01)
-
-# Lin et al. [2007], New Zealand: curves 5-50 s, maps 7-25 s, extension ~15°
-SPECTSNR_BANDS = [(5, 14), (10, 25), (15, 35)]
-PLOTXCORR_BANDS = [(5, 14), (10, 25), (15, 35), (20, 50)]
-RAWFTAN_PERIODS = np.arange(4.0, 45.1, 1.0)
-CLEANFTAN_PERIODS = np.arange(7.0, 30.1, 1.0)
-FTAN_VELOCITIES = np.arange(2.0, 5.51, 0.01)
-
-# smoothing parameter of FTAN analysis
-FTAN_ALPHA = 20
-
-# Map parameters
-BBOX_ALLPAIRS = (-70, -30, -32, 8)
-BBOX_ONEPAIR = (-65, -35, -29, 1)
 
 
 class MonthYear:
@@ -774,7 +751,7 @@ class CrossCorrelation:
         return interp1d(x=freqarray, y=phi)
 
     def plot_FTAN(self, rawampl=None, rawvg=None, cleanampl=None, cleanvg=None,
-                  whiten=True, showplot=True, months=None, bbox=BBOX_ONEPAIR,
+                  whiten=True, showplot=True, months=None, bbox=BBOX_SMALL,
                   figsize=(16, 5), outfile=None):
         """
         Plots log[ampl(T0,v)²], where ampl(T0,v) is the amplitude
@@ -1351,7 +1328,7 @@ class CrossCorrelationCollection(AttribDict):
 
     def plot_pairs(self, minSNR=None, minspectSNR=None, minday=1, mindist=None,
                    withnets=None, onlywithnets=None, pairs_subset=None, whiten=False,
-                   stationlabel=False, bbox=BBOX_ALLPAIRS, xsize=10, **plotkwargs):
+                   stationlabel=False, bbox=BBOX_LARGE, xsize=10, **plotkwargs):
         """
         Plots pairs of stations on a map
         @type bbox: tuple
@@ -1452,7 +1429,7 @@ class CrossCorrelationCollection(AttribDict):
             parts = [prefix]
         if suffix:
             parts.append(suffix)
-        basename = os.path.join(XCORR_DIR, '_'.join(parts))
+        basename = os.path.join(CROSSCORR_DIR, '_'.join(parts))
 
         # opening pdf file
         pdf = PdfPages(basename + '.pdf')
@@ -1659,7 +1636,7 @@ def load_pickled_xcorr(pickle_file):
     return xc
 
 
-def load_pickled_xcorr_interactive(xcorr_dir=XCORR_DIR, xcorr_files='xcorr*.pickle*'):
+def load_pickled_xcorr_interactive(xcorr_dir=CROSSCORR_DIR, xcorr_files='xcorr*.pickle*'):
     """
     Loads interactively pickle-dumped cross-correlations, by giving the user
     a choice among a list of file matching xcorrFiles
