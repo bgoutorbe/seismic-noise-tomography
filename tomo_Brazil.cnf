@@ -50,10 +50,10 @@ PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra
 # period bands to plot spectral SNR and estimate min spectral SNR (JSON list)
 SPECTSNR_BANDS = [[5, 14], [10, 25], [15, 35]]
 
-# period bands to plot band-passed cross-correlation
+# period bands to plot band-passed cross-correlation (JSON list)
 PLOTXCORR_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
 
-# periods and velocities of FTAN analysis: start, stop and step
+# periods and velocities of FTAN analysis: start, stop and step (JSON lists)
 RAWFTAN_PERIODS_STARTSTOPSTEP = [4.0, 45.1, 1.0]
 CLEANFTAN_PERIODS_STARTSTOPSTEP = [7.0, 20.1, 0.5]
 FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
@@ -95,5 +95,8 @@ TECTO_COLORS = {
     "Neoproterozoic": "0.9"
     }
 
-BBOX_LARGE = [-70, -30, -32, 8]  ; bounding box of (large) global maps (min/max lon, min/max lat)
-BBOX_SMALL = [-65, -35, -29, 1]  ; bounding box of (small) inset maps (min/max lon, min/max lat)
+# bounding box of (large) global maps and (small) inset maps
+# (min lon, max lon, min lat, max lat in JSON lists)
+
+BBOX_LARGE = [-70, -30, -32, 8]
+BBOX_SMALL = [-65, -35, -29, 1]
