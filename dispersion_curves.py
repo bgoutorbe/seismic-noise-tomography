@@ -20,5 +20,7 @@ xc = pscrosscorr.load_pickled_xcorr(pickle_file)
 
 # performing raw-clean FTAN, exporting FTANs to pdf and
 # dispersion curves to pickle file
+
+# copying suffix of cross-correlations file
 suffix = os.path.basename(pickle_file).split('_')[-1].split('.')[0]
 xc.FTANs(suffix=suffix, whiten=True)

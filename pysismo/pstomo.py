@@ -405,6 +405,7 @@ class Grid:
         return np.int_((y - self.ymin) / self.ystep)
 
 
+# noinspection PyShadowingNames
 class VelocityMap:
     """
     Class taking care of the inversion of velocities between
@@ -899,9 +900,13 @@ def pathdensity_colormap(dmax):
              'blue': ((0, 1, 1), (x1, 1, 1), (x2, 0, 0), (x3, 0, 0), (1, 0, 0))}
     return LinearSegmentedColormap('tmp', cdict)
 
+
 if __name__ == '__main__':
+    # importig dir of FTAN results
+    from psconfig import FTAN_DIR
+
     # loading dispersion curves
-    flist = sorted(glob.glob(pathname='../Cross-correlation/FTAN*.pickle*'))
+    flist = sorted(glob.glob(os.path.join(FTAN_DIR, 'FTAN*.pickle*')))
     print 'Select file containing dispersion curves:'
     print '\n'.join('{} - {}'.format(i, os.path.basename(f)) for i, f in enumerate(flist))
     pickle_file = flist[int(raw_input('\n'))]

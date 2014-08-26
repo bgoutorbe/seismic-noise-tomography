@@ -1445,13 +1445,15 @@ class CrossCorrelationCollection(AttribDict):
                                                     verbose=True)
             pairs = sorted(SNRarraydict.keys())
 
-        print "Plotting FTANs of {0} pairs".format(len(pairs))
+        s = ("Exporting FTANs of {} pairs to file {1}.pdf\n"
+             "and dispersion curves to file {1}.pickle\n")
+        print s.format(len(pairs), basename)
 
         cleanvgcurves = []
         print "Appending FTAN of pair:",
         for i, (s1, s2) in enumerate(pairs):
             # appending FTAN plot of pair s1-s2 to pdf
-            print "[{0}] {1}-{2}".format(i + 1, s1, s2),
+            print "[{}] {}-{}".format(i + 1, s1, s2),
             xc = self[s1][s2]
             assert isinstance(xc, CrossCorrelation)
 
@@ -1471,7 +1473,6 @@ class CrossCorrelationCollection(AttribDict):
         pdf.close()
 
         # exporting vg curves to pickle file
-        print '\nExporting clean vg disperion curves to file {}.pickle'.format(basename)
         f = psutils.openandbackup(basename + '.pickle', mode='wb')
         pickle.dump(cleanvgcurves, f, protocol=2)
         f.close()
@@ -1669,6 +1670,7 @@ def load_pickled_xcorr_interactive(xcorr_dir=CROSSCORR_DIR, xcorr_files='xcorr*.
     return xc
 
 
+# noinspection PyTypeChecker,PyTypeChecker
 def FTAN(x, dt, periods, alpha, phase_corr=None):
     """
     Frequency-time analysis of a time series.
