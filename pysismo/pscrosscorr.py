@@ -38,7 +38,7 @@ import matplotlib.gridspec as gridspec
 # parsing configuration file to import some parameters
 # ====================================================
 from psconfig import (
-    CROSSCORR_DIR, FTAN_DIR, SPECTSNR_BANDS, PLOTXCORR_BANDS,
+    CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA,
     BBOX_LARGE, BBOX_SMALL)
 
@@ -339,7 +339,7 @@ class CrossCorrelation:
         @type bands: (list of (float, float))
         @type whiten: bool
         @type vmin: float
-        @type vmax: bool
+        @type vmax: float
         @type noise_window_trail: float
         @type noise_window: float
         @type months: list of (L{MonthYear} or (int, int))
@@ -451,7 +451,7 @@ class CrossCorrelation:
         @type axlist: list of L{matplotlib.axes.AxesSubplot}
         """
         # one plot per band + plot of original xcorr
-        nplot = len(PLOTXCORR_BANDS) + 1
+        nplot = len(PERIOD_BANDS) + 1
 
         # limits of time axis
         xlim = (0, min(1.5 * self.dist() / vmin, self.timearray.max()))
@@ -476,9 +476,13 @@ class CrossCorrelation:
 
         # plotting original cross-correlation
         axlist[0].plot(xcout.timearray, xcdata)
-        xy = (axlist[0].get_xlim()[0] + 10, axlist[0].get_ylim()[1] / 2)
-        axlist[0].annotate('Original data', xy=xy, xytext=xy,
-                           bbox={'color': 'k', 'facecolor': 'white'})
+
+        # inserting text, e.g., "Original data, SNR = 10.1"
+        x = axlist[0].get_xlim()[0] + 10
+        y = axlist[0].get_ylim()[1] / 2
+        s = "Original data, SNR = {:.1f}".format(float(xcout.SNR(vmin=vmin, vmax=vmax)))
+        axlist[0].text(x, y, s, bbox={'color': 'k', 'facecolor': 'white'})
+
         # xlims
         _ = axlist[0].set_xlim(xlim)
         axlist[0].grid(True)
@@ -511,15 +515,21 @@ class CrossCorrelation:
             axlist[0].set_ylim(ylim)
 
         # plotting band-filtered cross-correlation
-        for ax, (tmin, tmax) in zip(axlist[1:], PLOTXCORR_BANDS):
+        for ax, (tmin, tmax) in zip(axlist[1:], PERIOD_BANDS):
             lastplot = ax is axlist[-1]
 
             dataarray = psutils.bandpass(data=xcdata, df=1.0 / xcout._get_xcorr_dt(),
                                          tmin=tmin, tmax=tmax)
             ax.plot(xcout.timearray, dataarray)
-            xy = (ax.get_xlim()[0] + 10, ax.get_ylim()[1] / 2)
-            ax.annotate(s='{tmin} - {tmax} s'.format(tmin=tmin, tmax=tmax),
-                        xy=xy, xytext=xy, bbox={'color': 'k', 'facecolor': 'white'})
+
+            # inserting text, e.g., "10 - 20 s, SNR = 10.1"
+            x = ax.get_xlim()[0] + 10
+            y = ax.get_ylim()[1] / 2
+            SNR = float(xcout.SNR(vmin=vmin, vmax=vmax, bands=[(tmin, tmax)]))
+            s = '{} - {} s, SNR = {:.1f}'.format(tmin, tmax, SNR)
+            ax.text(x, y, s, bbox={'color': 'k', 'facecolor': 'white'})
+
+            # plotting grid
             ax.grid(True)
 
             # vmin, vmax
@@ -782,7 +792,7 @@ class CrossCorrelation:
         # 1th panel: cross-correlation (original and band-passed)
         # =======================================================
 
-        gs1 = gridspec.GridSpec(len(PLOTXCORR_BANDS) + 1, 1, wspace=0.0, hspace=0.0)
+        gs1 = gridspec.GridSpec(len(PERIOD_BANDS) + 1, 1, wspace=0.0, hspace=0.0)
         axlist = [fig.add_subplot(ss) for ss in gs1]
         self.plot_by_period_band(axlist=axlist, plot_title=False, whiten=whiten)
 
@@ -904,7 +914,7 @@ class CrossCorrelation:
         """
         E.g., 'BL.GNSB-IU.RCBR, dist=1781 km, SNR=28.8, min spect SNR=24.1, ndays=208'
         """
-        minSNR = min(self.SNR(bands=SPECTSNR_BANDS, whiten=whiten, months=months))
+        minSNR = min(self.SNR(bands=PERIOD_BANDS, whiten=whiten, months=months))
         if not months:
             nday = self.nday
         else:
@@ -1050,7 +1060,7 @@ class CrossCorrelationCollection(AttribDict):
             if verbose:
                 print '{0}-{1}'.format(s1, s2),
 
-            SNRarray = self[s1][s2].SNR(bands=SPECTSNR_BANDS, whiten=whiten)
+            SNRarray = self[s1][s2].SNR(bands=PERIOD_BANDS, whiten=whiten)
             if not minspectSNR or min(SNRarray) >= minspectSNR:
                 SNRarraydict[(s1, s2)] = SNRarray
 
@@ -1284,7 +1294,7 @@ class CrossCorrelationCollection(AttribDict):
         SNRarrays = OrderedDict(sorted(SNRarrays.items(), key=lambda (k, v): v[0]))
 
         # array of mid of time bands
-        periodarray = [(tmin + tmax) / 2.0 for (tmin, tmax) in SPECTSNR_BANDS]
+        periodarray = [(tmin + tmax) / 2.0 for (tmin, tmax) in PERIOD_BANDS]
         minperiod = min(periodarray)
 
         # color cycle

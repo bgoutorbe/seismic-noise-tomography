@@ -120,7 +120,8 @@ for day in daylist:
 
     # subset if stations (if provided)
     if CROSSCORR_STATIONS_SUBSET:
-        month_stations = [sta for sta in month_stations if sta.name in CROSSCORR_STATIONS_SUBSET]
+        month_stations = [sta for sta in month_stations
+                          if sta.name in CROSSCORR_STATIONS_SUBSET]
 
     for istation, station in enumerate(month_stations):
         assert isinstance(station, psstation.Station)
@@ -168,13 +169,20 @@ for day in daylist:
                                     inventories=datalessinventories)
             print '[paz]',
         except pserrors.NoPAZFound:
-            # ...then in StationXML inventories
+            # ... then in dataless seed inventories, replacing 'BHZ' with 'HHZ'
+            # in trace's id (trick to make code work with Diogo's data)
             try:
-                trace.attach_response(inventories=xmlinventories)
-                print '[xml]',
-            except:
-                print '[no resp: skipped]',
-                continue
+                paz = psstation.get_paz(channelid=trace.id.replace('BHZ', 'HHZ'),
+                                        t=day, inventories=datalessinventories)
+                print '[paz]',
+            except pserrors.NoPAZFound:
+                # ...finally in StationXML inventories
+                try:
+                    trace.attach_response(inventories=xmlinventories)
+                    print '[xml]',
+                except:
+                    print '[no resp: skipped]',
+                    continue
 
         # Stacking power spectrum of station
         if CALC_SPECTRA:

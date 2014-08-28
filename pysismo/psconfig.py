@@ -132,11 +132,11 @@ PLOT_TRACES = config.getboolean('cross-correlation', 'PLOT_TRACES')
 # FTAN parameters
 # ---------------
 
-# period bands to plot spectral SNR and estimate min spectral SNR
-SPECTSNR_BANDS = json.loads(config.get('FTAN', 'SPECTSNR_BANDS'))
-
-# period bands to plot band-passed cross-correlation
-PLOTXCORR_BANDS = json.loads(config.get('FTAN', 'PLOTXCORR_BANDS'))
+# default period bands, used to:
+# - plot cross-correlation by period bands, in plot_FTAN(), plot_by_period_bands()
+# - plot spectral SNR, in plot_spectral_SNR()
+# - estimate min spectral SNR, in FTANs()
+PERIOD_BANDS = json.loads(config.get('FTAN', 'PERIOD_BANDS'))
 
 # smoothing parameter of FTAN analysis
 FTAN_ALPHA = config.getfloat('FTAN', 'FTAN_ALPHA')

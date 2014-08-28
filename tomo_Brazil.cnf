@@ -47,11 +47,11 @@ PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra
 [FTAN]
 #=====
 
-# period bands to plot spectral SNR and estimate min spectral SNR (JSON list)
-SPECTSNR_BANDS = [[5, 14], [10, 25], [15, 35]]
-
-# period bands to plot band-passed cross-correlation (JSON list)
-PLOTXCORR_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
+# default period bands (JSON list), used to:
+# - plot cross-correlation by period bands, in plot_FTAN(), plot_by_period_bands()
+# - plot spectral SNR, in plot_spectral_SNR()
+# - estimate min spectral SNR, in FTANs()
+PERIOD_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
 
 # periods and velocities of FTAN analysis: start, stop and step (JSON lists)
 RAWFTAN_PERIODS_STARTSTOPSTEP = [4.0, 45.1, 1.0]
@@ -64,17 +64,13 @@ FTAN_ALPHA = 20
 # Suggested values from bibliography:
 #
 # Shapiro et al. [2005], S California: curves 6-18 s, maps 7.5-15 s, extension ~5-10°
-# SPECTSNR_BANDS = [[7, 10], [10, 20]]
-# PLOTXCORR_BANDS = [[7, 15], [10, 20], [15, 25]]
+# PERIOD_BANDS = [[7, 15], [10, 20], [15, 25]]
 #
 # Yang et al. [2007], Europe: curves and maps 8-50 s, extension ~30°
-# SPECTSNR_BANDS = [[8, 25], [20, 50], [33, 70]]
-# PLOTXCORR_BANDS = [[8, 25], [20, 50], [33, 67], [50, 100], [70, 150]]
-# RAWFTAN_PERIODS = np.arange[4.0, 65.1, 1.0]
+# PERIOD_BANDS = [[8, 25], [20, 50], [33, 67], [50, 100], [70, 150]]
 #
 # Lin et al. [2007], New Zealand: curves 5-50 s, maps 7-25 s, extension ~15°
-# SPECTSNR_BANDS = [[5, 14], [10, 25], [15, 35]]
-# PLOTXCORR_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
+# PERIOD_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
 
 
 #=====
