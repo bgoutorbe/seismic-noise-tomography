@@ -923,7 +923,7 @@ class CrossCorrelation:
         title = u"{}-{}, dist={:.0f} km, SNR={:.1f}, min spect SNR={:.1f}, ndays={}"
         title = title.format(self.station1.network + '.' + self.station1.name,
                              self.station2.network + '.' + self.station2.name,
-                             self.dist(), float(self.SNR()), minSNR, nday)
+                             self.dist(), float(self.SNR(whiten=whiten)), minSNR, nday)
         return title
 
     def _get_xcorr_dt(self):
