@@ -24,8 +24,8 @@ CROSSCORR_STATIONS_SUBSET = null    ; subset of stations (null if all, else JSON
 CROSSCORR_TMAX = 2000               ; max time window (s) for cross-correlation
 CROSSCORR_SKIPLOCS = ["50"]         ; locations to skip (JSON list)
 
-PERIODMIN = 7.0                     ; bandpass parameters
-PERIODMAX = 150.0
+PERIODMIN = 3.0                     ; bandpass parameters
+PERIODMAX = 50.0
 CORNERS = 2
 ZEROPHASE = True
 PERIOD_RESAMPLE = 1.0               ; resample period to decimate traces, after band-pass
@@ -51,11 +51,11 @@ PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra
 # - plot cross-correlation by period bands, in plot_FTAN(), plot_by_period_bands()
 # - plot spectral SNR, in plot_spectral_SNR()
 # - estimate min spectral SNR, in FTANs()
-PERIOD_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
+PERIOD_BANDS = [[5, 15], [10, 20], [15, 25], [20, 30], [25, 35]]
 
 # periods and velocities of FTAN analysis: start, stop and step (JSON lists)
-RAWFTAN_PERIODS_STARTSTOPSTEP = [4.0, 45.1, 1.0]
-CLEANFTAN_PERIODS_STARTSTOPSTEP = [7.0, 20.1, 0.5]
+RAWFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
+CLEANFTAN_PERIODS_STARTSTOPSTEP = [5.0, 30.1, 1.0]
 FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
 
 # smoothing parameter of FTAN analysis

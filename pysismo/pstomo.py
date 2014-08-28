@@ -10,6 +10,7 @@ import glob
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
+import shutil
 
 # ====================================
 # Default dispersion curves parameters
@@ -21,7 +22,7 @@ MINSPECTSNR = 10
 # min spectral SNR to retain velocity if no std dev
 MINSPECTSNR_NOSDEV = 15
 # min sdt dev (km/s) to retain velocity
-MINSDEV = 0.1
+MAXSDEV = 0.1
 # min nb of trimesters to estimate std dev
 MINNBTRIMESTER = 4
 # max period = *MAXPERIOD_FACTOR* * pair distance
@@ -60,7 +61,7 @@ class DispersionCurve:
     """
     def __init__(self, periods, v, station1, station2,
                  minspectSNR=MINSPECTSNR, minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
-                 minsdev=MINSDEV, minnbtrimester=MINNBTRIMESTER,
+                 maxsdev=MAXSDEV, minnbtrimester=MINNBTRIMESTER,
                  maxperiodfactor=MAXPERIOD_FACTOR):
         """
         @type periods: L{ndarray}
@@ -84,13 +85,29 @@ class DispersionCurve:
         # filter parameters
         self.minspectSNR = minspectSNR
         self.minspectSNR_nosdev = minspectSNR_nosdev
-        self.maxsdev = minsdev
+        self.maxsdev = maxsdev
         self.minnbtrimester = minnbtrimester
         self.maxperiodfactor = maxperiodfactor
 
     def __repr__(self):
         return 'Dispersion curve between stations {}-{}'.format(self.station1.name,
                                                                 self.station2.name)
+
+    def update_parameters(self, minspectSNR=None, minspectSNR_nosdev=None,
+                          maxsdev=None, minnbtrimester=None, maxperiodfactor=None):
+        """
+        Updating one or more filtering parameter(s)
+        """
+        if not minspectSNR is None:
+            self.minspectSNR = minspectSNR
+        if not minspectSNR_nosdev is None:
+            self.minspectSNR_nosdev = minspectSNR_nosdev
+        if not maxsdev is None:
+            self.maxsdev = maxsdev
+        if not minnbtrimester is None:
+            self.minnbtrimester = minnbtrimester
+        if not maxperiodfactor is None:
+            self.maxperiodfactor = maxperiodfactor
 
     def dist(self):
         """
@@ -429,7 +446,8 @@ class VelocityMap:
      - Rradius     : radii of the cones that best-fit each line of the resolution
                      matrix
     """
-    def __init__(self, dispersion_curves, period, verbose=True):
+    def __init__(self, dispersion_curves, period, lonstep=LONSTEP, latstep=LATSTEP,
+                 plot=False, verbose=True):
         """
         @type dispersion_curves: list of L{DispersionCurve}
         """
@@ -473,10 +491,10 @@ class VelocityMap:
 
         # spatial grid for tomographic inversion
         lonmin = np.floor(min(lons1 + lons2))
-        nlon = np.ceil((max(lons1 + lons2) - lonmin) / LONSTEP) + 1
+        nlon = np.ceil((max(lons1 + lons2) - lonmin) / lonstep) + 1
         latmin = np.floor(min(lats1 + lats2))
-        nlat = np.ceil((max(lats1 + lats2) - latmin) / LATSTEP) + 1
-        self.grid = Grid(lonmin, LONSTEP, nlon, latmin, LATSTEP, nlat)
+        nlat = np.ceil((max(lats1 + lats2) - latmin) / latstep) + 1
+        self.grid = Grid(lonmin, lonstep, nlon, latmin, latstep, nlat)
 
         # geodesic paths associated with pairs of stations of dispersion curves
         if verbose:
@@ -677,8 +695,16 @@ class VelocityMap:
             # appending spatial resolution to array
             self.Rradius[i] = r0
 
-        # potting model
-        self.plot()
+        if plot:
+            # potting maps of velocity perturbation,
+            # path density and resolution
+            self.plot()
+
+    def __repr__(self):
+        """
+        E.g., "<Velocity map at period = 10 s>"
+        """
+        return '<Velocity map at period = {} s>'.format(self.period)
 
     def path_density(self, window=(LONSTEP, LATSTEP)):
         """
@@ -707,7 +733,7 @@ class VelocityMap:
 
         return density
 
-    def plot(self, xsize=28):
+    def plot(self, xsize=20, outfile=None):
         """
         Plots velocity perturbation, path density
         and spatial resolution
@@ -715,24 +741,39 @@ class VelocityMap:
         # bounding box
         bbox = self.grid.bbox()
         aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
-        fig = plt.figure(figsize=(xsize, aspectratio*xsize/3.0), tight_layout=True)
+        figsize = (xsize, aspectratio * xsize / 3.0 + 2)
+        fig = plt.figure(figsize=figsize, tight_layout=True)
 
         # plotting velocity perturbation
         ax = fig.add_subplot(131)
-        self.plot_perturbation(ax)
+        self.plot_perturbation(ax, title=False)
 
         # plotting path density
         ax = fig.add_subplot(132)
-        self.plot_pathdensity(ax)
+        self.plot_pathdensity(ax, title=False)
 
         # plotting spatial resolution
         ax = fig.add_subplot(133)
-        self.plot_resolution(ax)
+        self.plot_resolution(ax, title=False)
 
+        # fig title
+        s = u'Period = {} s, grid {}$^\circ\\times$ {}$^\circ$, {} paths'
+        s = s.format(self.period, self.grid.xstep, self.grid.ystep, len(self.paths))
+        fig.suptitle(s)
+
+        # saving figure
+        if outfile:
+            if os.path.exists(outfile):
+                # backup
+                shutil.copyfile(outfile, outfile + '~')
+            fig.set_size_inches(figsize)
+            fig.savefig(outfile, dpi=300)
+
+        # showing figure
         fig.show()
 
     def plot_pathdensity(self, ax=None, xsize=10, plotdensity=True, plotpaths=True,
-                         stationlabel=False, showgrid=False):
+                         stationlabel=False, title=True, showgrid=False):
         """
         Plots path density and/or interstation paths
         """
@@ -777,14 +818,15 @@ class VelocityMap:
         self._plot_stations(ax, stationlabel=stationlabel)
 
         # formatting axes
-        ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
+        if title:
+            ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
 
         if fig:
             fig.show()
 
-    def plot_perturbation(self, ax=None, xsize=10):
+    def plot_perturbation(self, ax=None, xsize=10, title=True):
         """
         Plots velocity perturbation in % relative to v0
         """
@@ -817,15 +859,15 @@ class VelocityMap:
         c.set_label('Velocity perturbation (%)')
 
         # formatting axes
-        s = u'Period = {} s, {} paths'
-        ax.set_title(s.format(self.period, len(self.paths)))
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
+        if title:
+            ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
 
         if fig:
             fig.show()
 
-    def plot_resolution(self, ax=None, xsize=10):
+    def plot_resolution(self, ax=None, xsize=10, title=True):
         """
         Plots resolution map
         """
@@ -857,10 +899,10 @@ class VelocityMap:
         c.set_label('Spatial resolution (km)')
 
         # formatting axes
-        s = u'Period = {} s, {} paths'
-        ax.set_title(s.format(self.period, len(self.paths)))
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
+        if title:
+            ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
 
         if fig:
             fig.show()
