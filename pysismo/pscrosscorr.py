@@ -1455,7 +1455,7 @@ class CrossCorrelationCollection(AttribDict):
                                                     verbose=True)
             pairs = sorted(SNRarraydict.keys())
 
-        s = ("Exporting FTANs of {} pairs to file {1}.pdf\n"
+        s = ("Exporting FTANs of {0} pairs to file {1}.pdf\n"
              "and dispersion curves to file {1}.pickle\n")
         print s.format(len(pairs), basename)
 
