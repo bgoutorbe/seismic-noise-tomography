@@ -8,6 +8,7 @@ DATALESS_DIR = ../Dataless seed              ; dir of dataless files
 
 CROSSCORR_DIR = ./output/cross-correlation  ; dir of cross-correlation results
 FTAN_DIR = ./output/FTAN                    ; dir of FTAN results (including dispersion curves)
+TOMO_DIR = ./output/tomography              ; dir of tomographic inversion results
 
 #==================
 [cross-correlation]

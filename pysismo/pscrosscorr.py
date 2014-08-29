@@ -4,9 +4,6 @@
 Module managing cross-correlation operations
 """
 
-# todo: find reference dispersion maps
-# todo: method group_velocities(periods, whiten=True)
-
 import pserrors, psutils, pstomo, psfortran
 import obspy.signal
 import obspy.xseed
@@ -32,7 +29,7 @@ from calendar import monthrange
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.gridspec as gridspec
+from matplotlib import gridspec
 
 # ====================================================
 # parsing configuration file to import some parameters

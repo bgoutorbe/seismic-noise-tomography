@@ -10,6 +10,7 @@ import glob
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib import gridspec
 import shutil
 
 # ====================================
@@ -422,7 +423,7 @@ class Grid:
         return np.int_((y - self.ymin) / self.ystep)
 
 
-# noinspection PyShadowingNames
+# noinspection PyShadowingNames,PyTypeChecker
 class VelocityMap:
     """
     Class taking care of the inversion of velocities between
@@ -447,7 +448,7 @@ class VelocityMap:
                      matrix
     """
     def __init__(self, dispersion_curves, period, lonstep=LONSTEP, latstep=LATSTEP,
-                 plot=False, verbose=True):
+                 showplot=False, verbose=True):
         """
         @type dispersion_curves: list of L{DispersionCurve}
         """
@@ -695,10 +696,10 @@ class VelocityMap:
             # appending spatial resolution to array
             self.Rradius[i] = r0
 
-        if plot:
+        if showplot:
             # potting maps of velocity perturbation,
             # path density and resolution
-            self.plot()
+            _ = self.plot()
 
     def __repr__(self):
         """
@@ -733,33 +734,42 @@ class VelocityMap:
 
         return density
 
-    def plot(self, xsize=20, outfile=None):
+    def plot(self, xsize=20, title=None, showplot=True, outfile=None):
         """
         Plots velocity perturbation, path density
-        and spatial resolution
+        and spatial resolution, and returns the figure.
+
+        @rtype: L{matplotlib.figure.Figure}
         """
         # bounding box
         bbox = self.grid.bbox()
         aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
         figsize = (xsize, aspectratio * xsize / 3.0 + 2)
-        fig = plt.figure(figsize=figsize, tight_layout=True)
+        fig = plt.figure(figsize=figsize)
+
+        # layout
+        gs = gridspec.GridSpec(1, 3, wspace=0.0, hspace=0.0)
 
         # plotting velocity perturbation
-        ax = fig.add_subplot(131)
-        self.plot_perturbation(ax, title=False)
+        ax = fig.add_subplot(gs[0, 0])
+        self.plot_perturbation(ax, plot_title=False)
 
         # plotting path density
-        ax = fig.add_subplot(132)
-        self.plot_pathdensity(ax, title=False)
+        ax = fig.add_subplot(gs[0, 1])
+        self.plot_pathdensity(ax, plot_title=False)
 
         # plotting spatial resolution
-        ax = fig.add_subplot(133)
-        self.plot_resolution(ax, title=False)
+        ax = fig.add_subplot(gs[0, 2])
+        self.plot_resolution(ax, plot_title=False)
 
         # fig title
-        s = u'Period = {} s, grid {}$^\circ\\times$ {}$^\circ$, {} paths'
-        s = s.format(self.period, self.grid.xstep, self.grid.ystep, len(self.paths))
-        fig.suptitle(s)
+        if not title:
+            # default title if not given
+            title = u'Period = {} s, {} paths'
+            title = title.format(self.period, len(self.paths))
+        fig.suptitle(title, fontsize=14)
+
+        gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
 
         # saving figure
         if outfile:
@@ -770,10 +780,13 @@ class VelocityMap:
             fig.savefig(outfile, dpi=300)
 
         # showing figure
-        fig.show()
+        if showplot:
+            fig.show()
+
+        return fig
 
     def plot_pathdensity(self, ax=None, xsize=10, plotdensity=True, plotpaths=True,
-                         stationlabel=False, title=True, showgrid=False):
+                         stationlabel=False, plot_title=True, showgrid=False):
         """
         Plots path density and/or interstation paths
         """
@@ -820,13 +833,13 @@ class VelocityMap:
         # formatting axes
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
-        if title:
+        if plot_title:
             ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
 
         if fig:
             fig.show()
 
-    def plot_perturbation(self, ax=None, xsize=10, title=True):
+    def plot_perturbation(self, ax=None, xsize=10, plot_title=True):
         """
         Plots velocity perturbation in % relative to v0
         """
@@ -850,24 +863,25 @@ class VelocityMap:
         # plotting perturbation relative to reference velocity (%)
         # model params m = (v0 - v) / v0,  so perturbation = -m
         dv = -self.grid.to_2D_array(self.m)
+        maxdv = np.abs(dv).max()
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(100 * dv.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', vmin=-10, vmax=10,
-                      cmap=plt.get_cmap('seismic_r'))
+                      interpolation='bicubic', vmin=-int(100*maxdv),
+                      vmax=int(100*maxdv), cmap=plt.get_cmap('seismic_r'))
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
         c.set_label('Velocity perturbation (%)')
 
         # formatting axes
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
-        if title:
+        if plot_title:
             ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
 
         if fig:
             fig.show()
 
-    def plot_resolution(self, ax=None, xsize=10, title=True):
+    def plot_resolution(self, ax=None, xsize=10, plot_title=True):
         """
         Plots resolution map
         """
@@ -901,7 +915,7 @@ class VelocityMap:
         # formatting axes
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
-        if title:
+        if plot_title:
             ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
 
         if fig:
