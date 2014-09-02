@@ -1440,7 +1440,11 @@ class CrossCorrelationCollection(AttribDict):
         basename = os.path.join(FTAN_DIR, '_'.join(parts))
 
         # opening pdf file
-        pdf = PdfPages(basename + '.pdf')
+        pdfname = u'{}.pdf'.format(basename)
+        if os.path.exists(pdfname):
+            # backup
+            shutil.copyfile(pdfname, pdfname + '~')
+        pdf = PdfPages(pdfname)
 
         # filtering pairs
         pairs = self.pairs(sort=True, minSNR=minSNR, mindist=mindist)

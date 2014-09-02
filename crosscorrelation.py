@@ -30,11 +30,37 @@ import warnings
 # ====================================================
 
 from pysismo.psconfig import (
-    CROSSCORR_DIR, USE_DATALESSPAZ, USE_STATIONXML, CROSSCORR_STATIONS_SUBSET,
+    MSEED_DIR, DATALESS_DIR, STATIONXML_DIR, CROSSCORR_DIR,
+    USE_DATALESSPAZ, USE_STATIONXML, CROSSCORR_STATIONS_SUBSET,
     FIRSTDAY, LASTDAY, MINFILL, FREQMIN, FREQMAX, CORNERS, ZEROPHASE, PERIOD_RESAMPLE,
     ONEBIT_NORM, FREQMIN_EARTHQUAKE, FREQMAX_EARTHQUAKE, WINDOW_TIME, WINDOW_FREQ,
     CROSSCORR_TMAX, CALC_SPECTRA, SPECTRA_STATIONS, SPECTRA_FIRSTDAY, SPECTRA_LASTDAY,
     PLOT_TRACES)
+
+print "\nProcessing parameters:"
+print "- dir of miniseed data: " + MSEED_DIR
+print "- dir of dataless seed data: " + DATALESS_DIR
+print "- dir of stationXML data: " + STATIONXML_DIR
+print "- output dir: " + CROSSCORR_DIR
+print "- band-pass: {:.0f}-{:.0f} s".format(1.0 / FREQMAX, 1.0 / FREQMIN)
+if ONEBIT_NORM:
+    print "- normalization in time-domain: one-bit normalization"
+else:
+    s = ("- normalization in time-domain: "
+         "running normalization in earthquake band ({:.0f}-{:.0f} s)")
+    print s.format(1.0 / FREQMAX_EARTHQUAKE, 1.0 / FREQMIN_EARTHQUAKE)
+fmt = '%d/%m/%Y'
+if not CALC_SPECTRA:
+    s = "- cross-correlation will be stacked between {}-{}"
+    print s.format(FIRSTDAY.strftime(fmt), LASTDAY.strftime(fmt))
+    subset = CROSSCORR_STATIONS_SUBSET
+else:
+    s = "- spectra of traces will be estimated between {}-{}"
+    print s.format(SPECTRA_FIRSTDAY.strftime(fmt), SPECTRA_LASTDAY.strftime(fmt))
+    subset = SPECTRA_STATIONS
+if subset:
+    print "  for stations: {}".format(', '.join(subset))
+print
 
 # ========================
 # Constants and parameters
@@ -47,30 +73,35 @@ EDGE = 3600
 # Simulated instrument
 PAZ_SIM = cornFreq2Paz(0.01)  # no attenuation up to period 100 s
 
-# ==========
-# Out prefix
-# ==========
+# ========================================
+# Name of output files (without extension).
+# E.g., "xcorr_2000-2012_xmlresponse"
+# ========================================
 
 responsefrom = []
 if USE_DATALESSPAZ:
     responsefrom.append('datalesspaz')
 if USE_STATIONXML:
     responsefrom.append('xmlresponse')
-OUTPREFIX_PARTS = [
+OUTBASENAME_PARTS = [
     'xcorr',
     '-'.join(s for s in CROSSCORR_STATIONS_SUBSET) if CROSSCORR_STATIONS_SUBSET else None,
     '{}-{}'.format(FIRSTDAY.year, LASTDAY.year),
     '1bitnorm' if ONEBIT_NORM else None,
     '+'.join(responsefrom)
 ]
-OUTPREFIX = os.path.join(CROSSCORR_DIR, '_'.join(p for p in OUTPREFIX_PARTS if p))
+OUTFILESPATH = os.path.join(CROSSCORR_DIR, '_'.join(p for p in OUTBASENAME_PARTS if p))
+
+if not CALC_SPECTRA:
+    print 'Default name of output files:\n"{}*"\n'.format(OUTFILESPATH)
+    suffix = raw_input("Enter suffix to append: [none]\n")
+    if suffix:
+        OUTFILESPATH = u'{}_{}'.format(OUTFILESPATH, suffix)
+    print 'Results will be exported to files:\n"{}*"\n'.format(OUTFILESPATH)
 
 # ============
 # Main program
 # ============
-
-if not CALC_SPECTRA:
-    print "Cross-correlations will be exported to files {}*\n".format(OUTPREFIX)
 
 # Reading inventories in dataless seed and/or StationXML files
 datalessinventories = []
@@ -78,19 +109,19 @@ xmlinventories = []
 if USE_DATALESSPAZ:
     warnings.filterwarnings('ignore')
     datalessinventories = psstation.get_dataless_inventories(
-        dataless_dir=psstation.DATALESS_DIR,
+        dataless_dir=DATALESS_DIR,
         verbose=True)
     warnings.filterwarnings('default')
     print
 if USE_STATIONXML:
     xmlinventories = psstation.get_stationxml_inventories(
-        stationxml_dir=psstation.STATIONXML_DIR,
+        stationxml_dir=STATIONXML_DIR,
         verbose=True)
     print
 
 # Getting list of stations
 stations = psstation.get_stations(
-    mseed_dir=psstation.MSEED_DIR,
+    mseed_dir=MSEED_DIR,
     xmlinventories=xmlinventories,
     datalessinventories=datalessinventories,
     startday=FIRSTDAY if not CALC_SPECTRA else SPECTRA_FIRSTDAY,
@@ -336,11 +367,11 @@ for day in daylist:
 # plotting & writing cross-correlation
 if not CALC_SPECTRA:
     s = 'Exporting cross-correlations to files {prefix}.[txt|pickle]'
-    print s.format(prefix=OUTPREFIX)
-    xc.export(outprefix=OUTPREFIX)
+    print s.format(prefix=OUTFILESPATH)
+    xc.export(outprefix=OUTFILESPATH)
     s = 'Plotting cross-correlations and saving to file {prefix}.png'
-    print s.format(prefix=OUTPREFIX)
-    xc.plot(xlim=(-1500, 1500), outfile=OUTPREFIX + '.png')
+    print s.format(prefix=OUTFILESPATH)
+    xc.plot(xlim=(-1500, 1500), outfile=OUTFILESPATH + '.png')
 
 # plotting spectra
 if CALC_SPECTRA:

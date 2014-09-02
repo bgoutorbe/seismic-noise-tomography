@@ -9,13 +9,14 @@ The results are exported in a pdf file in dir *TOMO_DIR*
 
 from pysismo import pstomo
 import os
+import shutil
 import glob
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 # constants and parameters
-PERIODS = [10.0, 15.0, 20.0, 25.0]
+PERIODS = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
 GRID_STEPS = [1.0, 0.5]
 MINPECTSNRS = [10.0, 8.0, 7.0]
 
@@ -38,7 +39,11 @@ except:
     pass
 basename = os.path.join(TOMO_DIR, os.path.splitext(os.path.basename(pickle_file))[0])
 print "Exporting maps in file: {}.pdf".format(basename)
-pdf = PdfPages(basename + '.pdf')
+pdfname = basename + '.pdf'
+if os.path.exists(pdfname):
+    # backup
+    shutil.copyfile(pdfname, pdfname + '~')
+pdf = PdfPages(pdfname)
 
 for period in PERIODS:
     print "Tomographic inversion at period = {} s".format(period)

@@ -867,8 +867,8 @@ class VelocityMap:
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(100 * dv.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', vmin=-int(100*maxdv),
-                      vmax=int(100*maxdv), cmap=plt.get_cmap('seismic_r'))
+                      interpolation='bicubic', vmin=-100*maxdv, vmax=100*maxdv,
+                      cmap=plt.get_cmap('seismic_r'))
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
         c.set_label('Velocity perturbation (%)')
 
@@ -948,6 +948,7 @@ def pathdensity_colormap(dmax):
     - green to red for 5 <= d <= 10
     - red to black for 10 <= d <= dmax
     """
+    dmax = max(dmax, 11)
     x1 = 1.0 / dmax
     x2 = 5.0 / dmax
     x3 = 10.0 / dmax

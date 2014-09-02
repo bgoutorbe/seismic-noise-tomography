@@ -26,7 +26,7 @@ CROSSCORR_TMAX = 2000               ; max time window (s) for cross-correlation
 CROSSCORR_SKIPLOCS = ["50"]         ; locations to skip (JSON list)
 
 PERIODMIN = 3.0                     ; bandpass parameters
-PERIODMAX = 50.0
+PERIODMAX = 150.0
 CORNERS = 2
 ZEROPHASE = True
 PERIOD_RESAMPLE = 1.0               ; resample period to decimate traces, after band-pass
