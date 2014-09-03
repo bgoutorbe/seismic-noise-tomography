@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 import pyproj
-import ConfigParser
+from pyPdf import PdfFileReader, PdfFileWriter
 
 # ====================================================
 # parsing configuration file to import some parameters
@@ -369,3 +369,80 @@ def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
 
     if fig:
         fig.show()
+
+
+def combine_pdf_pages(pdfpath, pagesgroups, verbose=False):
+    """
+    Combines vertically groups of pages of a pdf file
+
+    @type pdfpath: str or unicode
+    @type pagesgroups: list of (list of int)
+    """
+    # opening input file
+    if verbose:
+        print "Opening file " + pdfpath
+    fi = open(pdfpath, 'rb')
+    pdf = PdfFileReader(fi)
+
+    # opening output pdf
+    pdfout = PdfFileWriter()
+
+    # loop on groups of pages tom combine
+    for pagesgroup in pagesgroups:
+        if verbose:
+            print "Combining pages:",
+
+        # heights and widths
+        heights = [pdf.pages[i].mediaBox.getHeight() for i in pagesgroup]
+        widths = [pdf.pages[i].mediaBox.getWidth() for i in pagesgroup]
+
+        # adding new blank page
+        page_out = pdfout.addBlankPage(width=max(widths), height=sum(heights))
+        # merging pages of group
+        for i, p in enumerate(pagesgroup):
+            if verbose:
+                print p,
+            page_out.mergeTranslatedPage(pdf.pages[p], tx=0, ty=sum(heights[i+1:]))
+        print
+
+    # exporting merged pdf into temporary output file
+    if verbose:
+        print "Exporting merged pdf in file tmp.pdf"
+    fo = open('tmp.pdf', 'wb')
+    pdfout.write(fo)
+
+    # closing files
+    fi.close()
+    fo.close()
+
+    # removing original file and replacing it with merged pdf
+    if verbose:
+        print "Moving exported pdf to: " + pdfpath
+    os.remove(pdfpath)
+    os.rename('tmp.pdf', pdfpath)
+
+
+def groupbykey(iterable, key=None):
+    """
+    Returns a list of sublists of *iterable* grouped by key:
+    all elements x of a given sublist have the same
+    value key(x).
+
+    key(x) must return a hashable object, such that
+    set(key(x) for x in iterable) is possible.
+
+    If not given, key() is the identity funcion.
+    """
+    if not key:
+        key = lambda x: x
+
+    # unique keys
+    iterable = list(iterable)
+    keys = set(key(x) for x in iterable)
+
+    groups = []
+    for k in keys:
+        # group with key = k
+        groups.append([x for x in iterable if key(x) == k])
+
+    return groups

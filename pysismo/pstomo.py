@@ -18,7 +18,6 @@ import shutil
 # ====================================
 
 # min spectral SNR to retain [trimester] velocity
-# todo: lower min SNR for trimester FTAN??
 MINSPECTSNR = 10
 # min spectral SNR to retain velocity if no std dev
 MINSPECTSNR_NOSDEV = 15
@@ -448,11 +447,17 @@ class VelocityMap:
                      matrix
     """
     def __init__(self, dispersion_curves, period, lonstep=LONSTEP, latstep=LATSTEP,
+                 minspectSNR=MINSPECTSNR, minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
                  showplot=False, verbose=True):
         """
         @type dispersion_curves: list of L{DispersionCurve}
         """
         self.period = period
+
+        # updating parameters of dispersion curves
+        for c in dispersion_curves:
+            c.update_parameters(minspectSNR=minspectSNR,
+                                minspectSNR_nosdev=minspectSNR_nosdev)
 
         # valid dispersion curves (velocity != nan at period)
         self.disp_curves = [c for c in dispersion_curves
@@ -769,7 +774,7 @@ class VelocityMap:
             title = title.format(self.period, len(self.paths))
         fig.suptitle(title, fontsize=14)
 
-        gs.tight_layout(fig, rect=[0, 0.03, 1, 0.95])
+        gs.tight_layout(fig, rect=[0, 0, 1, 0.95])
 
         # saving figure
         if outfile:
@@ -907,8 +912,8 @@ class VelocityMap:
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(r.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', vmax=800,
-                      cmap=plt.get_cmap('YlOrRd_r'))
+                      interpolation='bicubic', vmin=0, vmax=1500,
+                      cmap=plt.get_cmap('jet_r'))
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
         c.set_label('Spatial resolution (km)')
 
