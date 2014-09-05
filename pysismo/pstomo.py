@@ -13,6 +13,11 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import gridspec
 import shutil
 
+# todo:
+# put parameters into configuration file, and as input arg in VelocityMap.__init__
+# plot and filter according to misfit (|d - Gm|)
+# checkboard test
+
 # ====================================
 # Default dispersion curves parameters
 # ====================================
@@ -362,12 +367,12 @@ class Grid:
 
     def to_2D_array(self, a):
         """
-        Converts a 1D array a[i] to a 2D array b[ix, iy]
+        Converts a sequence-like *a* to a 2D array b[ix, iy]
         such that i is the index of node (ix, iy)
         """
         b = np.zeros((self.nx, self.ny))
         ix, iy = self.ix_iy(range(self.n_nodes()))
-        b[ix, iy] = a
+        b[ix, iy] = np.array(a).flatten()
         return b
 
     def _x(self, ix):
@@ -433,18 +438,21 @@ class VelocityMap:
     Attributes:
      - period      : period (s) of the velocity map
      - disp_curves : disp curves whose period's velocity is not nan
-     - v0          : reference velocity
-     - d           : data array (differences observed-reference travel time)
+     - v0          : reference velocity (mean velocity)
+     - d           : data vector (differences observed-reference travel time)
      - Cinv        : inverse of covariance matrix of the data
-     - G           : forward operator, such that d = G.m
-                     (m = parameter array = (v0-v)/v0 at grid nodes)
+     - G           : forward matrix, such that d = G.m
+                     (m = parameter vector = (v0-v)/v0 at grid nodes)
      - density     : array of path densities at grid nodes
      - Q           : regularization matrix
      - Ginv        : inversion operator, (Gt.C^-1.G + Q)^-1.Gt
-     - m           : estimated model, Ginv.C^-1.d
+     - m           : vector of best-fitting parameters, Ginv.C^-1.d
      - R           : resolution matrix, (Gt.C^-1.G + Q)^-1.Gt.C^-1.G = Ginv.C^-1.G
-     - Rradius     : radii of the cones that best-fit each line of the resolution
-                     matrix
+     - Rradius     : array of radii of the cones that best-fit each line of the
+                     resolution matrix
+
+     Note that vectors (d, m) and matrixes (Cinv, G, Q, Ginv, R) are NOT
+     numpy arrays, but numpy matrixes.
     """
     def __init__(self, dispersion_curves, period, lonstep=LONSTEP, latstep=LATSTEP,
                  minspectSNR=MINSPECTSNR, minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
@@ -478,7 +486,7 @@ class VelocityMap:
         self.v0 = vels.mean()
 
         # =====================================================
-        # setting up data array
+        # setting up data vector
         # = array of differences observed-reference travel time
         # =====================================================
         if verbose:
@@ -486,7 +494,7 @@ class VelocityMap:
         lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
         lons2, lats2 = zip(*[c.station2.coord for c in self.disp_curves])
         dists = psutils.dist(lons1=lons1, lats1=lats1, lons2=lons2, lats2=lats2)
-        self.d = dists / vels - dists / self.v0
+        self.d = np.matrix(dists / vels - dists / self.v0).T
 
         # inverse of covariance matrix of the data
         if verbose:
@@ -634,11 +642,10 @@ class VelocityMap:
             print "Setting up inversion operator (Ginv)"
         self.Ginv = (self.G.T * self.Cinv * self.G + self.Q).I * self.G.T
 
-        # estimated model
+        # vector of best-fitting parameters
         if verbose:
-            print "Estimating model (m)"
-        m = self.Ginv * self.Cinv * np.matrix(self.d).T
-        self.m = np.array(m).reshape(len(m))
+            print "Estimating best-fitting parameters (m)"
+        self.m = self.Ginv * self.Cinv * self.d
 
         # resolution matrix
         if verbose:
@@ -757,11 +764,11 @@ class VelocityMap:
 
         # plotting velocity perturbation
         ax = fig.add_subplot(gs[0, 0])
-        self.plot_perturbation(ax, plot_title=False)
+        self.plot_velocity(ax, plot_title=False)
 
         # plotting path density
         ax = fig.add_subplot(gs[0, 1])
-        self.plot_pathdensity(ax, plot_title=False)
+        self.plot_pathdensity(ax, plot_title=False, stationlabel=True)
 
         # plotting spatial resolution
         ax = fig.add_subplot(gs[0, 2])
@@ -844,9 +851,9 @@ class VelocityMap:
         if fig:
             fig.show()
 
-    def plot_perturbation(self, ax=None, xsize=10, plot_title=True):
+    def plot_velocity(self, ax=None, xsize=10, perturbation=False, plot_title=True):
         """
-        Plots velocity perturbation in % relative to v0
+        Plots velocity (or perturbation relative to ref velocity) map
         """
         # bounding box
         bbox = self.grid.bbox()
@@ -865,17 +872,24 @@ class VelocityMap:
         # plotting stations
         self._plot_stations(ax, stationlabel=False)
 
-        # plotting perturbation relative to reference velocity (%)
-        # model params m = (v0 - v) / v0,  so perturbation = -m
-        dv = -self.grid.to_2D_array(self.m)
-        maxdv = np.abs(dv).max()
+        if perturbation:
+            # plotting perturbation relative to reference velocity (%)
+            # model params m = (v0 - v) / v0,  so perturbation = -m
+            v = -self.grid.to_2D_array(self.m) * 100
+            # symetric scale
+            maxv = np.abs(v).max()
+            kwargs = {'minv': -maxv, 'maxv': maxv}
+        else:
+            # plotting absolute velocities, v = v0*(1-m)
+            v = self.grid.to_2D_array(self.v0 * (1 - self.m))
+            kwargs = {}
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
-        m = ax.imshow(100 * dv.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', vmin=-100*maxdv, vmax=100*maxdv,
-                      cmap=plt.get_cmap('seismic_r'))
+        m = ax.imshow(v.transpose(), origin='bottom', extent=extent,
+                      interpolation='bicubic', cmap=plt.get_cmap('seismic_r'),
+                      **kwargs)
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
-        c.set_label('Velocity perturbation (%)')
+        c.set_label('Velocity perturbation (%)' if perturbation else 'Velocity (km/s)')
 
         # formatting axes
         ax.set_xlim(bbox[:2])

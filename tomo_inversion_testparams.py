@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import itertools as it
 
-# constants and parameters
+# inversion parameters to vary
 PERIODS = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
 GRID_STEPS = [1.0]
 MINPECTSNRS = [10.0, 8.0, 7.0]
@@ -53,7 +53,8 @@ for pickle_file in pickle_files:
         shutil.copyfile(pdfname, pdfname + '~')
     pdf = PdfPages(pdfname)
 
-    # trying various periods
+    # performing tomographic inversions, systematically
+    # varying the inversion parameters
     params_product = list(it.product(PERIODS, GRID_STEPS, MINPECTSNRS))
     for period, grid_step, minspectSNR in params_product:
         s = "Period = {} s, grid step = {}, min SNR = {}"
