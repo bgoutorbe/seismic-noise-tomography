@@ -1404,9 +1404,17 @@ class CrossCorrelationCollection(AttribDict):
     def FTANs(self, prefix=None, suffix='', whiten=True, mindist=None,
               minSNR=None, minspectSNR=None, monthyears=None):
         """
-        Export raw-clean FTAN plots to pdf (one page per pair)
-        and clean dispersion curves to pickle file, in dir
-        *FTAN_DIR*
+        Exports raw-clean FTAN plots to pdf (one page per pair)
+        and clean dispersion curves to pickle file.
+
+        pdf is exported to *prefix*[_*suffix*].pdf
+        dispersion curves are exported to *prefix*[_*suffix*].pickle
+
+        If *prefix* is not given, then it is automatically set up as:
+        *FTAN_DIR*/FTAN[_whitenedxc][_mindist=...][_minsSNR=...]
+                       [_minspectSNR=...][_month-year_month-year]
+
+        e.g.: ./output/FTAN/FTAN_whitenedxc_minspectSNR=10
 
         @type prefix: str or unicode
         @type suffix: str or unicode
@@ -1416,9 +1424,9 @@ class CrossCorrelationCollection(AttribDict):
         @type whiten: bool
         @type monthyears: list of (int, int)
         """
-        # setting default file name if not given
+        # setting default prefix if not given
         if not prefix:
-            parts = ['FTAN']
+            parts = [os.path.join(FTAN_DIR, 'FTAN')]
             if whiten:
                 parts.append('whitenedxc')
             if mindist:
@@ -1429,22 +1437,20 @@ class CrossCorrelationCollection(AttribDict):
                 parts.append('minspectSNR={0}'.format(minspectSNR))
             if monthyears:
                 parts.extend('{:02d}-{}'.format(m, y) for m, y in monthyears)
-            else:
-                startyear = min(self[s1][s2].startday.year for s1, s2 in self.pairs())
-                endyear = max(self[s1][s2].endday.year for s1, s2 in self.pairs())
-                parts.append('{}-{}'.format(startyear, endyear))
         else:
             parts = [prefix]
         if suffix:
             parts.append(suffix)
-        basename = os.path.join(FTAN_DIR, '_'.join(parts))
+
+        # path of output files (without extension)
+        outputpath = u'_'.join(parts)
 
         # opening pdf file
-        pdfname = u'{}.pdf'.format(basename)
-        if os.path.exists(pdfname):
+        pdfpath = u'{}.pdf'.format(outputpath)
+        if os.path.exists(pdfpath):
             # backup
-            shutil.copyfile(pdfname, pdfname + '~')
-        pdf = PdfPages(pdfname)
+            shutil.copyfile(pdfpath, pdfpath + '~')
+        pdf = PdfPages(pdfpath)
 
         # filtering pairs
         pairs = self.pairs(sort=True, minSNR=minSNR, mindist=mindist)
@@ -1458,7 +1464,7 @@ class CrossCorrelationCollection(AttribDict):
 
         s = ("Exporting FTANs of {0} pairs to file {1}.pdf\n"
              "and dispersion curves to file {1}.pickle\n")
-        print s.format(len(pairs), basename)
+        print s.format(len(pairs), outputpath)
 
         cleanvgcurves = []
         print "Appending FTAN of pair:",
@@ -1484,7 +1490,7 @@ class CrossCorrelationCollection(AttribDict):
         pdf.close()
 
         # exporting vg curves to pickle file
-        f = psutils.openandbackup(basename + '.pickle', mode='wb')
+        f = psutils.openandbackup(outputpath + '.pickle', mode='wb')
         pickle.dump(cleanvgcurves, f, protocol=2)
         f.close()
 

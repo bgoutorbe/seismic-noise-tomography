@@ -22,5 +22,5 @@ xc = pscrosscorr.load_pickled_xcorr(pickle_file)
 # dispersion curves to pickle file
 
 # copying suffix of cross-correlations file
-suffix = os.path.basename(pickle_file).split('_')[-1].split('.')[0]
+suffix = os.path.splitext(os.path.basename(pickle_file))[0].replace('xcorr_', '')
 xc.FTANs(suffix=suffix, whiten=True)
