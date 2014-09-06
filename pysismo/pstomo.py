@@ -15,10 +15,6 @@ import shutil
 
 # todo:
 # - put parameters into configuration file, and as input arg in VelocityMap.__init__
-# - v0 should be the inverse of the mean slowness (weighted by the paths length)
-#   implied by the observed traveltimes??
-# - in velocity plot: perturbation should be relative to the mean velocity (not v0)?
-#                     absolute velocity scale should be centered on the mean velocity
 # - plot and filter according to misfit (|d - Gm|)
 # - checkboard test
 
@@ -442,7 +438,8 @@ class VelocityMap:
     Attributes:
      - period      : period (s) of the velocity map
      - disp_curves : disp curves whose period's velocity is not nan
-     - v0          : reference velocity (mean velocity)
+     - v0          : reference velocity (inverse of mean slowness, i.e.,
+                     slowness implied by all observed travel-times)
      - d           : data vector (differences observed-reference travel time)
      - Cinv        : inverse of covariance matrix of the data
      - G           : forward matrix, such that d = G.m
@@ -486,18 +483,23 @@ class VelocityMap:
         # following Bensen et al. (2008)
         sigmav[np.isnan(sigmav)] = 3 * sigmav[-np.isnan(sigmav)].mean()
 
-        # reference model = mean of velocities at period
-        self.v0 = vels.mean()
-
         # =====================================================
-        # setting up data vector
+        # setting up reference velocity and data vector
         # = array of differences observed-reference travel time
         # =====================================================
         if verbose:
-            print 'Setting up data array (d)'
+            print 'Setting up reference velocity (v0) data vector (d)'
         lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
         lons2, lats2 = zip(*[c.station2.coord for c in self.disp_curves])
         dists = psutils.dist(lons1=lons1, lats1=lats1, lons2=lons2, lats2=lats2)
+
+        # reference velocity = inverse of mean slowness
+        # mean slowness = slowness implied by observed travel-times
+        #               = sum(observed travel-times) / sum(intersation distances)
+        s = (dists / vels).sum() / dists.sum()
+        self.v0 = 1.0 / s
+
+        # data vector
         self.d = np.matrix(dists / vels - dists / self.v0).T
 
         # inverse of covariance matrix of the data
