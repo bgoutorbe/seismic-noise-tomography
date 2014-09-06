@@ -14,9 +14,13 @@ from matplotlib import gridspec
 import shutil
 
 # todo:
-# put parameters into configuration file, and as input arg in VelocityMap.__init__
-# plot and filter according to misfit (|d - Gm|)
-# checkboard test
+# - put parameters into configuration file, and as input arg in VelocityMap.__init__
+# - v0 should be the inverse of the mean slowness (weighted by the paths length)
+#   implied by the observed traveltimes??
+# - in velocity plot: perturbation should be relative to the mean velocity (not v0)?
+#                     absolute velocity scale should be centered on the mean velocity
+# - plot and filter according to misfit (|d - Gm|)
+# - checkboard test
 
 # ====================================
 # Default dispersion curves parameters
@@ -442,7 +446,7 @@ class VelocityMap:
      - d           : data vector (differences observed-reference travel time)
      - Cinv        : inverse of covariance matrix of the data
      - G           : forward matrix, such that d = G.m
-                     (m = parameter vector = (v0-v)/v0 at grid nodes)
+                     (m = parameter vector = (v0-v)/v at grid nodes)
      - density     : array of path densities at grid nodes
      - Q           : regularization matrix
      - Ginv        : inversion operator, (Gt.C^-1.G + Q)^-1.Gt
@@ -853,7 +857,8 @@ class VelocityMap:
 
     def plot_velocity(self, ax=None, xsize=10, perturbation=False, plot_title=True):
         """
-        Plots velocity (or perturbation relative to ref velocity) map
+        Plots velocity or perturbation relative to mean velocity
+        (which is not necessarily the reference velocity)
         """
         # bounding box
         bbox = self.grid.bbox()
@@ -872,17 +877,20 @@ class VelocityMap:
         # plotting stations
         self._plot_stations(ax, stationlabel=False)
 
+        # velocities on grid: m = (v0 - v) / v, so v = v0 / (1 + m)
+        v = self.grid.to_2D_array(self.v0 / (1 + self.m))
+        vmean = v.mean()
         if perturbation:
-            # plotting perturbation relative to reference velocity (%)
-            # model params m = (v0 - v) / v0,  so perturbation = -m
-            v = -self.grid.to_2D_array(self.m) * 100
+            # plotting % perturbation relative to mean velocity
+            v = 100 * (v - vmean) / vmean
             # symetric scale
-            maxv = np.abs(v).max()
-            kwargs = {'minv': -maxv, 'maxv': maxv}
+            maxdv = np.abs(v).max()
+            kwargs = {'vmin': -maxdv, 'vmax': maxdv}
         else:
-            # plotting absolute velocities, v = v0*(1-m)
-            v = self.grid.to_2D_array(self.v0 * (1 - self.m))
-            kwargs = {}
+            # scale centered on mean velocity
+            maxdv = np.abs(v - vmean).max()
+            kwargs = {'vmin': vmean - maxdv, 'vmax': vmean + maxdv}
+
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(v.transpose(), origin='bottom', extent=extent,
