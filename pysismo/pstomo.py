@@ -26,7 +26,7 @@ import shutil
 MINSPECTSNR = 10
 # min spectral SNR to retain velocity if no std dev
 MINSPECTSNR_NOSDEV = 15
-# min sdt dev (km/s) to retain velocity
+# max sdt dev (km/s) to retain velocity
 MAXSDEV = 0.1
 # min nb of trimesters to estimate std dev
 MINNBTRIMESTER = 4
@@ -453,7 +453,9 @@ class VelocityMap:
                      resolution matrix
 
      Note that vectors (d, m) and matrixes (Cinv, G, Q, Ginv, R) are NOT
-     numpy arrays, but numpy matrixes.
+     numpy arrays, but numpy matrixes (vectors being n x 1 matrixes). This
+     means that the product operation (*) on such objects is NOT the
+     element-by-element product, but the real matrix product.
     """
     def __init__(self, dispersion_curves, period, lonstep=LONSTEP, latstep=LATSTEP,
                  minspectSNR=MINSPECTSNR, minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
@@ -483,10 +485,10 @@ class VelocityMap:
         # following Bensen et al. (2008)
         sigmav[np.isnan(sigmav)] = 3 * sigmav[-np.isnan(sigmav)].mean()
 
-        # =====================================================
+        # ======================================================
         # setting up reference velocity and data vector
-        # = array of differences observed-reference travel time
-        # =====================================================
+        # = vector of differences observed-reference travel time
+        # ======================================================
         if verbose:
             print 'Setting up reference velocity (v0) data vector (d)'
         lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
@@ -662,8 +664,8 @@ class VelocityMap:
         # Estimating spatial resolution at each node of the grid,
         # Rradius.
         #
-        # The ith row of the resolution matrix, R[i,:], contains the
-        # resolution map associated point grid node nb i, that is,
+        # The i-th row of the resolution matrix, R[i,:], contains the
+        # resolution map associated with the i-th grid noe, that is,
         # the estimated model we would get if there were only a point
         # velocity anomaly at node nb i. So a cone centered on node
         # nb i is fitted to the resolution map, and its radius gives
@@ -685,30 +687,33 @@ class VelocityMap:
 
             # best-fitting cone at point (lon0, lat0)
 
-            def cone_height(lonlat, z0, r0):
+            def cone_height(r, z0, r0):
                 """
-                Function returning height of cone of radius r0
-                centered on (lon0, lat0), at point (lon, lat)
+                Function returning the height of cone of radius *r0*
+                and peak *z0*, at a point located *r* km away from
+                the cone's center
                 """
-                lon, lat = lonlat
-                r = np.sqrt((lon - lon0)**2 + (lat - lat0)**2)
                 return np.where(r < r0, z0 * (1 - r / r0), 0.0)
 
-            # fitting the above function to heights in array Ri
-            popt, _ = curve_fit(f=cone_height,
-                                xdata=self.grid.xy_nodes(),
-                                ydata=Ri, p0=[1, 2])
+            # distances between nodes and cone's center (lon0, lat0)
+            lonnodes, latnodes = self.grid.xy_nodes()
+            n = self.grid.n_nodes()
+            rdata = psutils.dist(lons1=lonnodes, lats1=latnodes,
+                                 lons2=n*[lon0], lats2=n*[lat0])
 
-            # converting radius of best-fitting cone from decimal degrees
-            # to km, along meridian (conservative choice as it yields the
-            # largest possible value)
-            _, r0 = popt
+            # best possible resolution *rmin* = 2 * inter-node distance
+            # -> estimating *rmin* along the meridian crossing the cone's
+            #    center (conservative choice as it yields the largest
+            #    possible value)
             d2rad = np.pi / 180.0
-            r0 *= d2rad * 6371.0
-
-            # resolution cannot be less than 2 * inter-node distance
             rmin = 2 * d2rad * 6371.0 * max(self.grid.xstep * np.cos(lat0 * d2rad),
                                             self.grid.ystep)
+
+            # fitting the above function to observed heights along nodes,
+            # in array Ri
+            popt, _ = curve_fit(f=cone_height, xdata=rdata, ydata=Ri, p0=[1, 2*rmin])
+            _, r0 = popt
+            # reslution cannot be better than *rmin*
             r0 = max(rmin, r0)
 
             # appending spatial resolution to array
