@@ -155,6 +155,43 @@ FTAN_VELOCITIES_STARTSTOPSTEP = config.get('FTAN', 'FTAN_VELOCITIES_STARTSTOPSTE
 FTAN_VELOCITIES_STARTSTOPSTEP = json.loads(FTAN_VELOCITIES_STARTSTOPSTEP)
 FTAN_VELOCITIES = np.arange(*FTAN_VELOCITIES_STARTSTOPSTEP)
 
+
+# --------------------------------
+# Tomographic inversion parameters
+# --------------------------------
+
+# Default parameters related to the velocity selection criteria
+
+# min spectral SNR to retain velocity
+MINSPECTSNR = config.getfloat('tomography', 'MINSPECTSNR')
+# min spectral SNR to retain velocity if no std dev
+MINSPECTSNR_NOSDEV = config.getfloat('tomography', 'MINSPECTSNR_NOSDEV')
+# max sdt dev (km/s) to retain velocity
+MAXSDEV = config.getfloat('tomography', 'MAXSDEV')
+# min nb of trimesters to estimate std dev
+MINNBTRIMESTER = config.getint('tomography', 'MINNBTRIMESTER')
+# max period = *MAXPERIOD_FACTOR* * pair distance
+MAXPERIOD_FACTOR = config.getfloat('tomography', 'MAXPERIOD_FACTOR')
+
+# Default internode spacing of grid
+LONSTEP = config.getfloat('tomography', 'LONSTEP')
+LATSTEP = config.getfloat('tomography', 'LATSTEP')
+
+# Default correlation length of the smoothing kernel:
+# S(r,r') = exp[-|r-r'|**2 / (2 * correlation_length**2)]
+CORRELATION_LENGTH = config.getfloat('tomography', 'CORRELATION_LENGTH')
+
+# Default strength of the spatial smoothing term (alpha) and the
+# weighted norm penalization term (beta) in the penalty function
+ALPHA = config.getfloat('tomography', 'ALPHA')
+BETA = config.getfloat('tomography', 'BETA')
+
+# Default parameter to penalize more nodes with low path density,
+# such that the norm is weighted by exp(- lambda_*path_density)
+# in the the norm penalization term
+LAMBDA = config.getfloat('tomography', 'LAMBDA')
+
+
 # ---------------
 # maps parameters
 # ---------------

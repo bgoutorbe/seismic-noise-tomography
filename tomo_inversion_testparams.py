@@ -61,9 +61,9 @@ for pickle_file in pickle_files:
         print s.format(period, grid_step, minspectSNR)
 
         # velocity map at period, with given parameters
-        v = pstomo.VelocityMap(dispersion_curves=curves, period=period,
+        v = pstomo.VelocityMap(dispersion_curves=curves, period=period, verbose=False,
                                lonstep=grid_step, latstep=grid_step,
-                               minspectSNR=minspectSNR, verbose=False)
+                               minspectSNR=minspectSNR)
 
         # figure
         title = "Period = {0} s, grid {1} x {1} deg, min SNR = {2} ({3} paths)"

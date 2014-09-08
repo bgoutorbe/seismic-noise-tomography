@@ -14,47 +14,19 @@ from matplotlib import gridspec
 import shutil
 
 # todo:
-# - put parameters into configuration file, and as input arg in VelocityMap.__init__
 # - plot and filter according to misfit (|d - Gm|)
 # - checkboard test
 
-# ====================================
-# Default dispersion curves parameters
-# ====================================
+# ====================================================
+# parsing configuration file to import some parameters
+# ====================================================
+from psconfig import (
+    MINSPECTSNR, MINSPECTSNR_NOSDEV, MAXSDEV, MINNBTRIMESTER, MAXPERIOD_FACTOR,
+    LONSTEP, LATSTEP, CORRELATION_LENGTH, ALPHA, BETA, LAMBDA)
 
-# min spectral SNR to retain [trimester] velocity
-MINSPECTSNR = 10
-# min spectral SNR to retain velocity if no std dev
-MINSPECTSNR_NOSDEV = 15
-# max sdt dev (km/s) to retain velocity
-MAXSDEV = 0.1
-# min nb of trimesters to estimate std dev
-MINNBTRIMESTER = 4
-# max period = *MAXPERIOD_FACTOR* * pair distance
-MAXPERIOD_FACTOR = 1.0 / 12.0
-
-# internode spacing of grid for tomographic inversion
-LONSTEP = 1  # 0.5
-LATSTEP = 1  # 0.5
-
-# =========================
-# regularization parameters
-# =========================
-
-# correlation length of the smoothing kernel:
-# S(r,r') = exp[-|r-r'|**2 / (2 * CORRELATION_LENGTH**2)]
-CORRELATION_LENGTH = 200
-
-# strength of the spatial smoothing term (alpha) and the
-# weighted norm penalization term (beta) relatively to
-# the strength of the misfit, in the penalty function
-ALPHA = 800
-BETA = 100
-
-# lambda parameter, such that the norm is weighted by
-# exp(-lambda.path_density) in the the norm penalization
-# term of the penalty function
-LAMBDA = 0.147
+# ========================
+# Constants and parameters
+# ========================
 
 EPS = 1.0E-6
 
@@ -457,18 +429,78 @@ class VelocityMap:
      means that the product operation (*) on such objects is NOT the
      element-by-element product, but the real matrix product.
     """
-    def __init__(self, dispersion_curves, period, lonstep=LONSTEP, latstep=LATSTEP,
-                 minspectSNR=MINSPECTSNR, minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
-                 showplot=False, verbose=True):
+    def __init__(self, dispersion_curves, period, showplot=False, verbose=True,
+                 **kwargs):
         """
+        Initializes the velocity map at period = *period*, from
+        the observed velocities in *dispersion_curves*:
+        - sets up the data vector, forward matrix and regularization matrix
+        - performs the tomographic inversion to estimate the best-fitting
+          parameters and the resolution matrix
+        - estimates the characteristic spatial resolution by fitting a cone
+          to each line of the resolution matrix
+
+        Append optional argument (**kwargs) to override default values:
+        - minspectSNR       : min spectral SNR to retain velocity
+                              (default MINSPECTSNR)
+        - minspectSNR_nosdev: min spectral SNR to retain velocities without standard
+                              deviation (default MINSPECTSNR_NOSDEV)
+        - minnbtrimester    : min nb of trimester velocities to estimate standard
+                              deviation of velocity
+        - maxsdev           : max standard deviation to retain velocity (default MAXSDEV)
+        - lonstep           : longitude step of grid (default LONSTEP)
+        - latstep           : latitude step of grid (default LATSTEP)
+        - correlation_length: correlation length of the smoothing kernel:
+                                S(r,r') = exp[-|r-r'|**2 / (2 * correlation_length**2)]
+                              (default value CORRELATION_LENGTH)
+        - alpha             : strength of the spatial smoothing term in the penalty
+                              function (default ALPHA)
+        - beta              : strength of the weighted norm penalization term in the
+                              penalty function (default BETA)
+        - lambda_           : parameter to penalize more nodes with low path density,
+                              such that the norm is weighted by:
+                                exp(- lambda_*path_density)
+                              in the the norm penalization term (default LAMBDA)
+
         @type dispersion_curves: list of L{DispersionCurve}
         """
         self.period = period
 
+        # reading inversion parameters
+        minspectSNR = kwargs.get('minspectSNR', MINSPECTSNR)
+        minspectSNR_nosdev = kwargs.get('minspectSNR_nosdev', MINSPECTSNR_NOSDEV)
+        minnbtrimester = kwargs.get('minnbtrimester', MINNBTRIMESTER)
+        maxsdev = kwargs.get('maxsdev', MAXSDEV)
+        lonstep = kwargs.get('lonstep', LONSTEP)
+        latstep = kwargs.get('latstep', LATSTEP)
+        correlation_length = kwargs.get('correlation_length', CORRELATION_LENGTH)
+        alpha = kwargs.get('alpha', ALPHA)
+        beta = kwargs.get('beta', BETA)
+        lambda_ = kwargs.get('lambda_', LAMBDA)
+
+        if verbose:
+            print "Velocities selection criteria:"
+            print "- rejecting velocities if SNR < {}".format(minspectSNR)
+            s = "- rejecting velocities without std dev if SNR < {}"
+            print s.format(minspectSNR_nosdev)
+            s = "- estimating standard dev of velocities with more than {} trimesters"
+            print s.format(minnbtrimester)
+            print "- rejecting velocities with standard dev > {} km/s".format(maxsdev)
+            print "\nTomographic inversion parameters:"
+            print "- {} x {} deg grid".format(lonstep, latstep)
+            s = "- correlation length of the smoothing kernel: {} km"
+            print s.format(correlation_length)
+            print "- strength of the spatial smoothing term: {}".format(alpha)
+            print "- strength of the norm penalization term: {}".format(beta)
+            print "- weighting norm by exp(- {} * path_density)".format(lambda_)
+            print
+
         # updating parameters of dispersion curves
         for c in dispersion_curves:
             c.update_parameters(minspectSNR=minspectSNR,
-                                minspectSNR_nosdev=minspectSNR_nosdev)
+                                minspectSNR_nosdev=minspectSNR_nosdev,
+                                minnbtrimester=minnbtrimester,
+                                maxsdev=maxsdev)
 
         # valid dispersion curves (velocity != nan at period)
         self.disp_curves = [c for c in dispersion_curves
@@ -618,7 +650,7 @@ class VelocityMap:
 
         # setting up smoothing kernel:
         # S[i,j] = K * exp[-|ri-rj|**2 / (2 * CORRELATION_LENGTH**2)]
-        S = np.exp(-dists**2 / (2 * CORRELATION_LENGTH**2))
+        S = np.exp(-dists**2 / (2 * correlation_length**2))
         S /= S.sum(axis=-1)  # normalization
 
         # setting up spatial regularization matrix F
@@ -629,13 +661,13 @@ class VelocityMap:
         # -> difference is negligible??
 
         F[np.diag_indices_from(F)] = 1
-        F *= ALPHA
+        F *= alpha
 
         # setting up regularization matrix Q
         # ... Ft.F part
         Q = np.dot(F.T, F)
         # ... Ht.H part
-        Q[np.diag_indices_from(Q)] += BETA**2 * np.exp(-2 * LAMBDA * self.density)
+        Q[np.diag_indices_from(Q)] += beta**2 * np.exp(-2 * lambda_ * self.density)
 
         self.Q = np.matrix(Q)
 
@@ -1004,4 +1036,4 @@ if __name__ == '__main__':
     f = open(pickle_file, 'rb')
     curves = pickle.load(f)
     f.close()
-    print "Dispserion curves stored in variable 'curves'"
+    print "Dispersion curves stored in variable 'curves'"
