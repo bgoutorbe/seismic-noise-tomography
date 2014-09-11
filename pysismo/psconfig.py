@@ -186,9 +186,10 @@ CORRELATION_LENGTH = config.getfloat('tomography', 'CORRELATION_LENGTH')
 ALPHA = config.getfloat('tomography', 'ALPHA')
 BETA = config.getfloat('tomography', 'BETA')
 
-# Default parameter to penalize more nodes with low path density,
+# Default parameter in the damping factor of the norm penalization term,
 # such that the norm is weighted by exp(- lambda_*path_density)
-# in the the norm penalization term
+# With a value of 0.15, penalization becomes strong when path density < ~20
+# With a value of 0.30, penalization becomes strong when path density < ~10
 LAMBDA = config.getfloat('tomography', 'LAMBDA')
 
 

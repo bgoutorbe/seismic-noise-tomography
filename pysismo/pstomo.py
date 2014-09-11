@@ -457,10 +457,14 @@ class VelocityMap:
                               function (default ALPHA)
         - beta              : strength of the weighted norm penalization term in the
                               penalty function (default BETA)
-        - lambda_           : parameter to penalize more nodes with low path density,
-                              such that the norm is weighted by:
+        - lambda_           : parameter in the damping factor of the norm penalization
+                              term, such that the norm is weighted by:
                                 exp(- lambda_*path_density)
-                              in the the norm penalization term (default LAMBDA)
+                              With a value of 0.15, penalization becomes strong when
+                              path density < ~20
+                              With a value of 0.30, penalization becomes strong when
+                              path density < ~10
+                              (default LAMBDA)
 
         @type dispersion_curves: list of L{DispersionCurve}
         """
@@ -650,11 +654,11 @@ class VelocityMap:
 
         # setting up smoothing kernel:
         # S[i,j] = K * exp[-|ri-rj|**2 / (2 * CORRELATION_LENGTH**2)]
-        S = np.exp(-dists**2 / (2 * correlation_length**2))
+        S = np.exp(- dists**2 / (2 * correlation_length**2))
         S /= S.sum(axis=-1)  # normalization
 
         # setting up spatial regularization matrix F
-        F = -S
+        F = np.matrix(-S)
 
         # F[i,i] = 1 according to Barmin et al.
         # F[i,i] = 1 - S[i,i] according to my calculation!
@@ -665,11 +669,12 @@ class VelocityMap:
 
         # setting up regularization matrix Q
         # ... Ft.F part
-        Q = np.dot(F.T, F)
+        Q = F.T * F
         # ... Ht.H part
-        Q[np.diag_indices_from(Q)] += beta**2 * np.exp(-2 * lambda_ * self.density)
+        for i, path_density in enumerate(self.density):
+            Q[i, i] += beta**2 * np.exp(-2 * lambda_ * path_density)
 
-        self.Q = np.matrix(Q)
+        self.Q = Q
 
         # ===========================================================
         # setting up inversion operator Ginv = (Gt.C^-1.G + Q)^-1.Gt,
@@ -822,7 +827,7 @@ class VelocityMap:
             # default title if not given
             title = u'Period = {} s, {} paths'
             title = title.format(self.period, len(self.paths))
-        fig.suptitle(title, fontsize=14)
+        fig.suptitle(title, fontsize=16)
 
         gs.tight_layout(fig, rect=[0, 0, 1, 0.95])
 

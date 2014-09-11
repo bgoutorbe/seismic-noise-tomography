@@ -80,7 +80,7 @@ FTAN_ALPHA = 20
 
 # Default parameters related to the velocity selection criteria
 
-MINSPECTSNR = 10            ; min spectral SNR to retain velocity
+MINSPECTSNR = 7             ; min spectral SNR to retain velocity
 MINSPECTSNR_NOSDEV = 15     ; min spectral SNR to retain velocity if no std dev
 MAXSDEV = 0.1               ; max sdt dev (km/s) to retain velocity
 MINNBTRIMESTER = 4          ; min nb of trimesters to estimate std dev
@@ -94,19 +94,20 @@ LATSTEP = 1
 # Default correlation length of the smoothing kernel:
 # S(r,r') = exp[-|r-r'|**2 / (2 * correlation_length**2)]
 
-CORRELATION_LENGTH = 200
+CORRELATION_LENGTH = 150
 
 # Default strength of the spatial smoothing term (alpha) and the
 # weighted norm penalization term (beta) in the penalty function
 
-ALPHA = 800
+ALPHA = 600
 BETA = 100
 
-# Default parameter to penalize more nodes with low path density,
+# Default parameter in the damping factor of the norm penalization term,
 # such that the norm is weighted by exp(- lambda_*path_density)
-# in the the norm penalization term
+# With a value of 0.15, penalization becomes strong when path density < ~20
+# With a value of 0.30, penalization becomes strong when path density < ~10
 
-LAMBDA = 0.147
+LAMBDA = 0.3
 
 
 #=====

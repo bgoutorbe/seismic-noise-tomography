@@ -368,7 +368,7 @@ for day in daylist:
 if not CALC_SPECTRA:
     s = 'Exporting cross-correlations to files {prefix}.[txt|pickle]'
     print s.format(prefix=OUTFILESPATH)
-    xc.export(outprefix=OUTFILESPATH)
+    xc.export(outprefix=OUTFILESPATH, stations=stations)
     s = 'Plotting cross-correlations and saving to file {prefix}.png'
     print s.format(prefix=OUTFILESPATH)
     xc.plot(xlim=(-1500, 1500), outfile=OUTFILESPATH + '.png')

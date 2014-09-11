@@ -1390,16 +1390,17 @@ class CrossCorrelationCollection(AttribDict):
         plt.ylim(bbox[2:])
         plt.show()
 
-    def export(self, outprefix):
+    def export(self, outprefix, stations=None):
         """
         Exports cross-correlations to picke file and txt file
 
         @type outprefix: str or unicode
+        @type stations: list of L{Station}
         """
         self._to_picklefile(outprefix)
         self._write_crosscorrs(outprefix)
         self._write_pairsstats(outprefix)
-        self._write_stations(outprefix)
+        self._write_stations(outprefix, stations=stations)
 
     def FTANs(self, prefix=None, suffix='', whiten=True, mindist=None,
               minSNR=None, minspectSNR=None, monthyears=None):
@@ -1584,16 +1585,19 @@ class CrossCorrelationCollection(AttribDict):
 
         f.close()
 
-    def _write_stations(self, outprefix):
+    def _write_stations(self, outprefix, stations=None):
         """
         Exports information on cross-correlated stations
         to txt file
 
         @type outprefix: str or unicode
+        @type stations: list of {Station}
         """
-        # stations with at least one day of cross-correlation
-        # with another stations
-        stations = self.stations(self.pairs(minday=1), sort=True)
+
+        if not stations:
+            # extracting the list of stations from cross-correlations
+            # if not provided
+            stations = self.stations(self.pairs(minday=0), sort=True)
 
         # opening stations file and writing:
         # station name, network, lon, lat, nb of pairs, total days of cross-corr

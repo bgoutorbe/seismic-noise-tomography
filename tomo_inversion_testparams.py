@@ -19,18 +19,23 @@ import itertools as it
 # inversion parameters to vary
 PERIODS = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
 GRID_STEPS = [1.0]
-MINPECTSNRS = [10.0, 8.0, 7.0]
+MINPECTSNRS = [7.0]
+CORR_LENGTHS = [150]
+ALPHAS = [600, 1500, 3000]
+BETAS = [200]
+LAMBDAS = [0.3]
 
 # parsing configuration file to import dirs
 from pysismo.psconfig import FTAN_DIR, TOMO_DIR
 
 # selecting dispersion curves
 flist = sorted(glob.glob(os.path.join(FTAN_DIR, 'FTAN*.pickle*')))
-print 'Select file containing dispersion curves:'
+print 'Select file containing dispersion curves: [All]'
 print '0 - All'
-print '\n'.join('{} - {}'.format(i + 1, os.path.basename(f)) for i, f in enumerate(flist))
-res = int(raw_input('\n'))
-pickle_files = flist if res == 0 else [flist[res - 1]]
+print '\n'.join('{} - {}'.format(i + 1, os.path.basename(f))
+                for i, f in enumerate(flist))
+res = raw_input('\n')
+pickle_files = flist if not res else [flist[int(res) - 1]]
 
 # loop on pickled curves
 for pickle_file in pickle_files:
@@ -55,19 +60,25 @@ for pickle_file in pickle_files:
 
     # performing tomographic inversions, systematically
     # varying the inversion parameters
-    params_product = list(it.product(PERIODS, GRID_STEPS, MINPECTSNRS))
-    for period, grid_step, minspectSNR in params_product:
-        s = "Period = {} s, grid step = {}, min SNR = {}"
-        print s.format(period, grid_step, minspectSNR)
+    param_lists = it.product(PERIODS, GRID_STEPS, MINPECTSNRS, CORR_LENGTHS,
+                             ALPHAS, BETAS, LAMBDAS)
+    param_lists = list(param_lists)
+    for period, grid_step, minspectSNR, corr_length, alpha, beta, lambda_ in param_lists:
+        s = ("Period = {} s, grid step = {}, min SNR = {}, corr. length "
+             "= {} km, alpha = {}, beta = {}, lambda = {}")
+        print s.format(period, grid_step, minspectSNR, corr_length, alpha, beta, lambda_)
 
         # velocity map at period, with given parameters
         v = pstomo.VelocityMap(dispersion_curves=curves, period=period, verbose=False,
                                lonstep=grid_step, latstep=grid_step,
-                               minspectSNR=minspectSNR)
+                               minspectSNR=minspectSNR, correlation_length=corr_length,
+                               alpha=alpha, beta=beta, lambda_=lambda_)
 
         # figure
-        title = "Period = {0} s, grid {1} x {1} deg, min SNR = {2} ({3} paths)"
-        title = title.format(period, grid_step, minspectSNR, len(v.paths))
+        title = ("Period = {0} s, grid {1} x {1} deg, min SNR = {2}, corr. length "
+                 "= {3} km, alpha = {4}, beta = {5}, lambda = {6} ({7} paths)")
+        title = title.format(period, grid_step, minspectSNR, corr_length,
+                             alpha, beta, lambda_, len(v.paths))
         fig = v.plot(title=title, showplot=False)
 
         # exporting plot in pdf
@@ -78,10 +89,10 @@ for pickle_file in pickle_files:
     pdf.close()
 
     # merging pages of pdf with similar period
-    pagenbs = range(len(params_product))
+    pagenbs = range(len(param_lists))
 
     def key(pagenb):
-        period, _, _ = params_product[pagenb]
+        period = param_lists[pagenb][0]
         return period
 
     pagesgroups = psutils.groupbykey(pagenbs, key=key)
