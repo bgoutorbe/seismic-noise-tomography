@@ -17,7 +17,7 @@ TOMO_DIR = ./output/tomography              ; dir of tomographic inversion resul
 USE_DATALESSPAZ = False             ; use dataless files to remove instrument response?
 USE_STATIONXML = True               ; use stationXML files to remove instrument response?
 
-FIRSTDAY = 1/1/2000                 ; first day of cross-correlation (d/m/y)
+FIRSTDAY = 1/1/1996                 ; first day of cross-correlation (d/m/y)
 LASTDAY = 31/3/2012                 ; last day of cross-correlation (d/m/y)
 MINFILL = 0.99                      ; minimum data fill within day
 
@@ -25,7 +25,7 @@ CROSSCORR_STATIONS_SUBSET = null    ; subset of stations (null if all, else JSON
 CROSSCORR_TMAX = 2000               ; max time window (s) for cross-correlation
 CROSSCORR_SKIPLOCS = ["50"]         ; locations to skip (JSON list)
 
-PERIODMIN = 3.0                     ; bandpass parameters
+PERIODMIN = 7.0                     ; bandpass parameters
 PERIODMAX = 150.0
 CORNERS = 2
 ZEROPHASE = True

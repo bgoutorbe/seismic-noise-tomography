@@ -24,6 +24,7 @@ import numpy as np
 from numpy.fft import rfft, irfft
 import os
 import warnings
+import datetime as dt
 
 # ====================================================
 # parsing configuration file to import some parameters
@@ -67,7 +68,7 @@ print
 # ========================
 
 EPS = 1.0E-6
-ONEDAY = 3600 * 24
+ONEDAY = dt.timedelta(days=1)
 EDGE = 3600
 
 # Simulated instrument
@@ -135,7 +136,7 @@ spectra = psspectrum.SpectrumList()
 
 # Loop on day
 nday = LASTDAY - FIRSTDAY if not CALC_SPECTRA else SPECTRA_LASTDAY - SPECTRA_FIRSTDAY
-nday = int(nday / ONEDAY) + 1
+nday = int(nday / (3600.0 * 24.0)) + 1
 day1 = FIRSTDAY if not CALC_SPECTRA else SPECTRA_FIRSTDAY
 daylist = [day1 + i * ONEDAY for i in range(nday)]
 for day in daylist:
