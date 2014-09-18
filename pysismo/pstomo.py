@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import gridspec
 import shutil
+from inspect import getargspec
 
 # todo:
 # - plot and filter according to misfit (|d - Gm|)
@@ -412,14 +413,15 @@ class VelocityMap:
      - disp_curves : disp curves whose period's velocity is not nan
      - v0          : reference velocity (inverse of mean slowness, i.e.,
                      slowness implied by all observed travel-times)
-     - d           : data vector (differences observed-reference travel time)
+     - dobs        : vector of observed data (differences observed-reference travel time)
      - Cinv        : inverse of covariance matrix of the data
      - G           : forward matrix, such that d = G.m
                      (m = parameter vector = (v0-v)/v at grid nodes)
      - density     : array of path densities at grid nodes
      - Q           : regularization matrix
      - Ginv        : inversion operator, (Gt.C^-1.G + Q)^-1.Gt
-     - m           : vector of best-fitting parameters, Ginv.C^-1.d
+     - mopt        : vector of best-fitting parameters, Ginv.C^-1.dobs
+                     = best-fitting (v0-v)/v at grid nodes
      - R           : resolution matrix, (Gt.C^-1.G + Q)^-1.Gt.C^-1.G = Ginv.C^-1.G
      - Rradius     : array of radii of the cones that best-fit each line of the
                      resolution matrix
@@ -538,7 +540,7 @@ class VelocityMap:
         self.v0 = 1.0 / s
 
         # data vector
-        self.d = np.matrix(dists / vels - dists / self.v0).T
+        self.dobs = np.matrix(dists / vels - dists / self.v0).T
 
         # inverse of covariance matrix of the data
         if verbose:
@@ -690,7 +692,7 @@ class VelocityMap:
         # vector of best-fitting parameters
         if verbose:
             print "Estimating best-fitting parameters (m)"
-        self.m = self.Ginv * self.Cinv * self.d
+        self.mopt = self.Ginv * self.Cinv * self.dobs
 
         # resolution matrix
         if verbose:
@@ -794,10 +796,14 @@ class VelocityMap:
 
         return density
 
-    def plot(self, xsize=20, title=None, showplot=True, outfile=None):
+    def plot(self, xsize=20, title=None, showplot=True, outfile=None, **kwargs):
         """
         Plots velocity perturbation, path density
         and spatial resolution, and returns the figure.
+
+        Additional keyword args in *kwargs* are sent to
+        self.plot_velocity(), self.plot_pathdensity()
+        and self.plot_resolution(), when applicable
 
         @rtype: L{matplotlib.figure.Figure}
         """
@@ -812,15 +818,27 @@ class VelocityMap:
 
         # plotting velocity perturbation
         ax = fig.add_subplot(gs[0, 0])
-        self.plot_velocity(ax, plot_title=False)
+        subkwargs = {'ax': ax, 'plot_title': False}
+        # sending additional arguments (when applicable)
+        subkwargs.update({k: kwargs[k] for k in getargspec(self.plot_velocity).args
+                         if k in kwargs})
+        self.plot_velocity(**subkwargs)
 
         # plotting path density
         ax = fig.add_subplot(gs[0, 1])
-        self.plot_pathdensity(ax, plot_title=False, stationlabel=True)
+        subkwargs = {'ax': ax, 'plot_title': False, 'stationlabel': True}
+        # sending additional arguments (when applicable)
+        subkwargs.update({k: kwargs[k] for k in getargspec(self.plot_pathdensity).args
+                         if k in kwargs})
+        self.plot_pathdensity(**subkwargs)
 
         # plotting spatial resolution
         ax = fig.add_subplot(gs[0, 2])
-        self.plot_resolution(ax, plot_title=False)
+        subkwargs = {'ax': ax, 'plot_title': False}
+        # sending additional arguments (when applicable)
+        subkwargs.update({k: kwargs[k] for k in getargspec(self.plot_resolution).args
+                         if k in kwargs})
+        self.plot_resolution(**subkwargs)
 
         # fig title
         if not title:
@@ -846,9 +864,19 @@ class VelocityMap:
         return fig
 
     def plot_pathdensity(self, ax=None, xsize=10, plotdensity=True, plotpaths=True,
-                         stationlabel=False, plot_title=True, showgrid=False):
+                         stationlabel=False, plot_title=True, showgrid=False,
+                         terr_threshold=None):
         """
-        Plots path density and/or interstation paths
+        Plots path density and/or interstation paths.
+
+        Paths for which the relative err between observed and predicted travel-time,
+
+          terr = (observed - predicted travel-time) / predicted traveltime,
+               = (dobs - dpred) / (dpred + dist / v0),
+          with dpred = G.mopt
+
+        is greater than *terr_threshold* (if defined) are highlighted
+        as bold lines.
         """
         # bounding box
         bbox = self.grid.bbox()
@@ -877,10 +905,20 @@ class VelocityMap:
             c.set_label('Path density')
 
         if plotpaths:
+            terr = None
+            if terr_threshold:
+                # relative error between observed/predicted travel-times
+                dists = np.matrix([c.dist() for c in self.disp_curves]).T
+                dpred = self.G * self.mopt
+                terr = (self.dobs - dpred) / (dpred + dists / self.v0)
             # plotting paths
-            for path in self.paths:
+            for i, path in enumerate(self.paths):
                 x, y = zip(*path)
-                ax.plot(x, y, '-', color='grey', lw=0.5)
+                linestyle = {'color': 'grey', 'lw': 0.5}
+                if terr_threshold and abs(float(terr[i])) > terr_threshold:
+                    # highlighting line as the travel-time error is > threshold
+                    linestyle = {'color': 'black', 'lw': 1.5}
+                ax.plot(x, y, '-', **linestyle)
 
         if showgrid:
             # plotting grid
@@ -922,7 +960,7 @@ class VelocityMap:
         self._plot_stations(ax, stationlabel=False)
 
         # velocities on grid: m = (v0 - v) / v, so v = v0 / (1 + m)
-        v = self.grid.to_2D_array(self.v0 / (1 + self.m))
+        v = self.grid.to_2D_array(self.v0 / (1 + self.mopt))
         vmean = v.mean()
         if perturbation:
             # plotting % perturbation relative to mean velocity
