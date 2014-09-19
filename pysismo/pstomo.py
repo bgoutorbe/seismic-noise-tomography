@@ -15,7 +15,6 @@ import shutil
 from inspect import getargspec
 
 # todo:
-# - plot and filter according to misfit (|d - Gm|)
 # - checkboard test
 
 # ====================================================
@@ -431,8 +430,8 @@ class VelocityMap:
      means that the product operation (*) on such objects is NOT the
      element-by-element product, but the real matrix product.
     """
-    def __init__(self, dispersion_curves, period, showplot=False, verbose=True,
-                 **kwargs):
+    def __init__(self, dispersion_curves, period, skippairs=(),
+                 showplot=False, verbose=True, **kwargs):
         """
         Initializes the velocity map at period = *period*, from
         the observed velocities in *dispersion_curves*:
@@ -441,6 +440,12 @@ class VelocityMap:
           parameters and the resolution matrix
         - estimates the characteristic spatial resolution by fitting a cone
           to each line of the resolution matrix
+
+        Specify pairs to be skipped (if any), as a list of pairs of stations names,
+        e.g., skippairs = [('APOB', 'SPB'), ('ITAB', 'BAMB')].
+        This option is useful to perform a 2-pass tomographic inversion,
+        wherein pairs with a too large difference observed/predicted travel-
+        time are excluded from the second pass.
 
         Append optional argument (**kwargs) to override default values:
         - minspectSNR       : min spectral SNR to retain velocity
@@ -469,6 +474,7 @@ class VelocityMap:
                               (default LAMBDA)
 
         @type dispersion_curves: list of L{DispersionCurve}
+        @type skippairs: list of (str, str)
         """
         self.period = period
 
@@ -500,6 +506,12 @@ class VelocityMap:
             print "- strength of the norm penalization term: {}".format(beta)
             print "- weighting norm by exp(- {} * path_density)".format(lambda_)
             print
+
+        # skipping pairs
+        if skippairs:
+            skippairs = [set(pair) for pair in skippairs]
+            dispersion_curves = [c for c in dispersion_curves
+                                 if not {c.station1.name, c.station2.name} in skippairs]
 
         # updating parameters of dispersion curves
         for c in dispersion_curves:
@@ -796,6 +808,22 @@ class VelocityMap:
 
         return density
 
+    def traveltime_reldiffs(self):
+        """
+        Returns the relative difference between observed and predicted
+        travel-time at each pair of stations:
+
+          terr = (observed - predicted travel-time) / predicted traveltime,
+               = (dobs - dpred) / (dpred + dist / v0),
+          with dpred = G.mopt
+
+        @rtype: L{matrix}
+        """
+        dists = np.matrix([c.dist() for c in self.disp_curves]).T
+        dpred = self.G * self.mopt
+        terr = (self.dobs - dpred) / (dpred + dists / self.v0)
+        return terr
+
     def plot(self, xsize=20, title=None, showplot=True, outfile=None, **kwargs):
         """
         Plots velocity perturbation, path density
@@ -905,12 +933,9 @@ class VelocityMap:
             c.set_label('Path density')
 
         if plotpaths:
-            terr = None
-            if terr_threshold:
-                # relative error between observed/predicted travel-times
-                dists = np.matrix([c.dist() for c in self.disp_curves]).T
-                dpred = self.G * self.mopt
-                terr = (self.dobs - dpred) / (dpred + dists / self.v0)
+            # relative error between observed/predicted travel-times
+            terr = self.traveltime_reldiffs() if terr_threshold else []
+
             # plotting paths
             for i, path in enumerate(self.paths):
                 x, y = zip(*path)

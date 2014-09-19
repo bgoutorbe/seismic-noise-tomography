@@ -1,6 +1,7 @@
 """
 This script performs a tomographic inversions of a set of
-velocities between pairs of stations, systematically varying
+observed travel-times (equivalent to observed velocities)
+between pairs of stations, systematically varying
 the filtering and inversion parameters: period, grid size,
 min SNR etc.
 
@@ -45,7 +46,7 @@ for pickle_file in pickle_files:
     curves = pickle.load(f)
     f.close()
 
-    # opening pdf file
+    # opening pdf file (setting name as "tomography_xxx.pdf")
     try:
         os.makedirs(TOMO_DIR)
     except:

@@ -139,6 +139,18 @@ PLOT_TRACES = config.getboolean('cross-correlation', 'PLOT_TRACES')
 # - estimate min spectral SNR, in FTANs()
 PERIOD_BANDS = json.loads(config.get('FTAN', 'PERIOD_BANDS'))
 
+# default parameters to define the signal and noise windows used to
+# estimate the SNR:
+# - the signal window is defined according to a min and a max velocity as:
+#   dist/vmax < t < dist/vmin
+# - the noise window has a fixed size and starts after a fixed trailing
+#   time from the end of the signal window
+
+SIGNAL_WINDOW_VMIN = config.getfloat('FTAN', 'SIGNAL_WINDOW_VMIN')
+SIGNAL_WINDOW_VMAX = config.getfloat('FTAN', 'SIGNAL_WINDOW_VMAX')
+SIGNAL2NOISE_TRAIL = config.getfloat('FTAN', 'SIGNAL2NOISE_TRAIL')
+NOISE_WINDOW_SIZE = config.getfloat('FTAN', 'NOISE_WINDOW_SIZE')
+
 # smoothing parameter of FTAN analysis
 FTAN_ALPHA = config.getfloat('FTAN', 'FTAN_ALPHA')
 

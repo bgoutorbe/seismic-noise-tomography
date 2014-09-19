@@ -36,6 +36,7 @@ from matplotlib import gridspec
 # ====================================================
 from psconfig import (
     CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS,
+    SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA,
     BBOX_LARGE, BBOX_SMALL)
 
@@ -329,16 +330,32 @@ class CrossCorrelation:
         xcout.whitened = True
         return xcout
 
-    def SNR(self, bands=None, whiten=False, vmin=2.5, vmax=5.0,
-            noise_window_trail=500, noise_window=500, months=None):
+    def SNR(self, bands=None, whiten=False, vmin=SIGNAL_WINDOW_VMIN,
+            vmax=SIGNAL_WINDOW_VMAX, signal2noise_trail=SIGNAL2NOISE_TRAIL,
+            noise_window_size=NOISE_WINDOW_SIZE, months=None):
         """
-        [spectral] signal-to-noise ratio
+        [spectral] signal-to-noise ratio, calculated as the peak
+        of the absolute amplitude in the signal window divided by
+        the standard deviation in the noise window.
+        If period bands are given (in *bands*), then for each band
+        the SNR is calculated after band-passing the cross-correlation.
+
+        The signal window is defined by *vmin* and *vmax*:
+
+          dist/*vmax* < t < dist/*vmin*
+
+        The noise window starts *signal2noise_trail* after the
+        signal window and has a size of *noise_window_size*:
+
+          t > dist/*vmin* + *signal2noise_trail*
+          t < dist/*vmin* + *signal2noise_trail* + *noise_window_size*
+
         @type bands: (list of (float, float))
         @type whiten: bool
         @type vmin: float
         @type vmax: float
-        @type noise_window_trail: float
-        @type noise_window: float
+        @type signal2noise_trail: float
+        @type noise_window_size: float
         @type months: list of (L{MonthYear} or (int, int))
         @rtype: L{numpy.ndarray}
         """
@@ -370,8 +387,8 @@ class CrossCorrelation:
             peak = np.max(abs(dataarray[window]))
 
             # noise window
-            tau_min = tau_max + noise_window_trail
-            tau_max = tau_min + noise_window
+            tau_min = tau_max + signal2noise_trail
+            tau_max = tau_min + noise_window_size
             window = (xcout.timearray <= tau_max) & (xcout.timearray >= tau_min)
             noise = dataarray[window].std()
 
@@ -381,7 +398,8 @@ class CrossCorrelation:
         # returning 1d array if spectral SNR, 0d array if normal SNR
         return np.array(SNR) if len(SNR) > 1 else np.array(SNR[0])
 
-    def plot(self, whiten=False, sym=False, vmin=2.5, vmax=5.0, months=None):
+    def plot(self, whiten=False, sym=False, vmin=SIGNAL_WINDOW_VMIN,
+             vmax=SIGNAL_WINDOW_VMAX, months=None):
         """
         Plots cross-correlation and its spectrum
         """
@@ -440,7 +458,8 @@ class CrossCorrelation:
         plt.show()
 
     def plot_by_period_band(self, axlist=None, plot_title=True, whiten=False,
-                            vmin=2.5, vmax=5.0, months=None, outfile=None):
+                            vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+                            months=None, outfile=None):
         """
         Plots cross-correlation for various bands of periods
         (PLOTXCORR_BANDS)

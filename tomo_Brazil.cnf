@@ -52,14 +52,29 @@ PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra
 # - plot cross-correlation by period bands, in plot_FTAN(), plot_by_period_bands()
 # - plot spectral SNR, in plot_spectral_SNR()
 # - estimate min spectral SNR, in FTANs()
+
 PERIOD_BANDS = [[5, 15], [10, 20], [15, 25], [20, 30], [25, 35]]
 
+# default parameters to define the signal and noise windows used to
+# estimate the SNR:
+# - the signal window is defined according to a min and a max velocity as:
+#   dist/vmax < t < dist/vmin
+# - the noise window has a fixed size and starts after a fixed trailing
+#   time from the end of the signal window
+
+SIGNAL_WINDOW_VMIN = 2.5
+SIGNAL_WINDOW_VMAX = 5.0
+SIGNAL2NOISE_TRAIL = 500.0
+NOISE_WINDOW_SIZE = 500.0
+
 # periods and velocities of FTAN analysis: start, stop and step (JSON lists)
+
 RAWFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
 CLEANFTAN_PERIODS_STARTSTOPSTEP = [5.0, 30.1, 1.0]
 FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
 
 # smoothing parameter of FTAN analysis
+
 FTAN_ALPHA = 20
 
 # Suggested values from bibliography:
