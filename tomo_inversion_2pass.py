@@ -123,12 +123,45 @@ for pickle_file in pickle_files:
                              for c, terr in zip(v.disp_curves, terrs)
                              if abs(float(terr)) > MAX_TRAVELTIME_RELDIFF]
 
+        # let's compare the 2-pass tomography with a one-pass tomography
+        s = ("One-pass tomography: grid step = {}, min SNR = {}, "
+             "corr. length = {} km, alpha = {}, beta = {}, lambda = {}")
+        print s.format(GRID_STEPS[1], MINPECTSNRS[1], CORR_LENGTHS[1],
+                       ALPHAS[1], BETAS[1], LAMBDAS[1])
+
+        # tomographic inversion
+        v = pstomo.VelocityMap(dispersion_curves=curves,
+                               period=period,
+                               verbose=False,
+                               lonstep=GRID_STEPS[1],
+                               latstep=GRID_STEPS[1],
+                               minspectSNR=MINPECTSNRS[1],
+                               correlation_length=CORR_LENGTHS[1],
+                               alpha=ALPHAS[1],
+                               beta=BETAS[1],
+                               lambda_=LAMBDAS[1])
+
+        # figure (highlighting paths with large diff
+        # between obs/predicted travel-time)
+        title = ("Period = {0} s, one pass, grid {1} x {1} deg, "
+                 "min SNR = {2}, corr. length = {3} km, alpha = {4}, "
+                 "beta = {5}, lambda = {6} ({7} paths)")
+        title = title.format(period, GRID_STEPS[1], MINPECTSNRS[1],
+                             CORR_LENGTHS[1], ALPHAS[1],
+                             BETAS[1], LAMBDAS[1], len(v.paths))
+        fig = v.plot(title=title, showplot=False,
+                     terr_threshold=MAX_TRAVELTIME_RELDIFF)
+
+        # exporting plot in pdf
+        pdf.savefig(fig)
+        plt.close()
+
     # closing pdf file
     pdf.close()
 
     # merging pages of pdf with similar period
-    pagenbs = range(len(PERIODS) * 2)  # 2 figures per period (one per pass)
-    key = lambda pagenb: int(pagenb / 2)  # grouping pages 0-1, then 2-3 etc.
+    pagenbs = range(len(PERIODS) * 3)  # 3 figures per period (two-pass + one-pass)
+    key = lambda pagenb: int(pagenb / 3)  # grouping pages 0-1-2, then 3-4-5 etc.
 
     pagesgroups = psutils.groupbykey(pagenbs, key=key)
     print "\nMerging pages of pdf..."
