@@ -41,8 +41,8 @@ class DispersionCurve:
                  maxsdev=MAXSDEV, minnbtrimester=MINNBTRIMESTER,
                  maxperiodfactor=MAXPERIOD_FACTOR):
         """
-        @type periods: L{ndarray}
-        @type v: L{ndarray}
+        @type periods: iterable
+        @type v: iterable
         @type station1: L{psstation.Station}
         @type station2: L{psstation.Station}
         """
@@ -125,9 +125,9 @@ class DispersionCurve:
         """
         Standard dev of velocity at each period, calculated
         across trimester velocity curves. On periods at which
-        std dev cannot be calculated, nan are returned.
+        std dev cannot be calculated, NaNs are returned.
 
-        Filtering criteria:
+        Selection criteria:
         - SNR of trimester velocity >= minspectSNR
         - nb of trimester velocities >= minnbtrimester
 
@@ -151,33 +151,47 @@ class DispersionCurve:
 
     def filtered_vels_sdevs(self):
         """
-        Returns array of velocities and array of (std dev or nan).
+        Returns array of velocities and array of associated
+        standard deviations. Velocities not passing selection
+        criteria are replaced with NaNs. Where standard
+        deviation cannot be estimated, NaNs are returned.
 
-        Filtering criteria:
-        - period <= pair distance * *maxperiodfactor*
-        AND
-        - SNR of velocity >= minspectSNR_nosdev
-        OR
-        - SNR of velocity >= minspectSNR
-        - std dev != nan and <= max std dev
+        Selection criteria:
+        1) period <= distance * *maxperiodfactor*
+        2) for velocities having a standard deviation associated:
+           - standard deviation <= *maxsdev*
+           - SNR >= *minspectSNR*
+        3) for velocities NOT having a standard deviation associated:
+           - SNR >= *minspectSNR_nosdev*
 
         @rtype: L{numpy.ndarray}, L{numpy.ndarray}
         """
         if self._SNRs is None:
             raise Exception("Spectral SNRs not defined")
 
-        # std devs
+        # estimating std devs, WHERE POSSIBLE (returning NaNs where not possible)
         sdevs = self.filtered_sdevs()
+        has_sdev = ~np.isnan(sdevs)  # where are std devs defined?
 
-        # filtering criteria:
-        # - periods <= distance * maxperiodfactor
-        mask = self.periods <= self.maxperiodfactor * self.station1.dist(self.station2)
-        # - SNR >= minspectSNR_nosdev or
-        #   SNR >= minspectSNR and std dev <= min std dev
-        mask &= (self._SNRs >= self.minspectSNR_nosdev) | \
-                ((self._SNRs >= self.minspectSNR) &
-                 np.where(np.isnan(sdevs), False, sdevs <= self.maxsdev))
+        # Selection criteria:
+        # 1) period <= distance * *maxperiodfactor*
 
+        cutoffperiod = self.maxperiodfactor * self.station1.dist(self.station2)
+        mask = self.periods <= cutoffperiod
+
+        # 2) for velocities having a standard deviation associated:
+        #    - standard deviation <= *maxsdev*
+        #    - SNR >= *minspectSNR*
+
+        mask[has_sdev] &= (sdevs[has_sdev] <= self.maxsdev) & \
+                          (self._SNRs[has_sdev] >= self.minspectSNR)
+
+        # 3) for velocities NOT having a standard deviation associated:
+        #    - SNR >= *minspectSNR_nosdev*
+
+        mask[~has_sdev] &= self._SNRs[~has_sdev] >= self.minspectSNR_nosdev
+
+        # replacing velocities not passing the selection criteria with NaNs
         return np.where(mask, self.v, np.nan), sdevs
 
     def filtered_vel_sdev_SNR(self, period):
@@ -191,7 +205,7 @@ class DispersionCurve:
         """
         iperiod = np.abs(self.periods - period).argmin()
         if np.abs(self.periods[iperiod] - period) > EPS:
-            raise Exception('Cannot find period in disperion curve')
+            raise Exception('Cannot find period in dispersion curve')
 
         vels, sdevs = self.filtered_vels_sdevs()
         return vels[iperiod], sdevs[iperiod], self._SNRs[iperiod]
@@ -200,7 +214,7 @@ class DispersionCurve:
         """
         Returns list of arrays of trimester velocities, or nan.
 
-        Filtering criteria:
+        Selection criteria:
         - SNR of trimester velocity >= minspectSNR
         - period <= pair distance * *maxperiodfactor*
 
