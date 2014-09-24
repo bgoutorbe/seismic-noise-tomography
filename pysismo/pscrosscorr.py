@@ -457,26 +457,48 @@ class CrossCorrelation:
 
         plt.show()
 
-    def plot_by_period_band(self, axlist=None, plot_title=True, whiten=False,
-                            vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+    def plot_by_period_band(self, axlist=None, bands=PERIOD_BANDS,
+                            plot_title=True, whiten=False, tmax=None,
+                            vmin=SIGNAL_WINDOW_VMIN,
+                            vmax=SIGNAL_WINDOW_VMAX,
+                            signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                            noise_window_size=NOISE_WINDOW_SIZE,
                             months=None, outfile=None):
         """
         Plots cross-correlation for various bands of periods
-        (PLOTXCORR_BANDS)
+
+        The signal window:
+            vmax / dist < t < vmin / dist,
+        and the noise window:
+            t > vmin / dist + signal2noise_trail
+            t < vmin / dist + signal2noise_trail + noise_window_size,
+        serve to estimate the SNRs and are highlighted on the plot.
+
+        If *tmax* is not given, default is to show times up to the noise
+        window (plus 5 %). The y-scale is adapted to fit the min and max
+        cross-correlation AFTER the beginning of the signal window.
 
         @type axlist: list of L{matplotlib.axes.AxesSubplot}
         """
         # one plot per band + plot of original xcorr
-        nplot = len(PERIOD_BANDS) + 1
+        nplot = len(bands) + 1
 
         # limits of time axis
-        xlim = (0, min(1.5 * self.dist() / vmin, self.timearray.max()))
+        if not tmax:
+            # default is to show time up to the noise window (plus 5 %)
+            tmax = self.dist() / vmin + signal2noise_trail + noise_window_size
+            tmax = min(1.05 * tmax, self.timearray.max())
+        xlim = (0, tmax)
 
         # creating figure if not given as input
         fig = None
         if not axlist:
             fig = plt.figure()
             axlist = [fig.add_subplot(nplot, 1, i) for i in range(1, nplot + 1)]
+
+        for ax in axlist:
+            # smaller y tick label
+            ax.tick_params(axis='y', labelsize=9)
 
         axlist[0].get_figure().subplots_adjust(hspace=0)
 
@@ -490,82 +512,122 @@ class CrossCorrelation:
         # cross-corr of desired months
         xcdata = xcout._get_monthyears_xcdataarray(months=months)
 
+        # limits of y-axis = min/max of the cross-correlation
+        # AFTER the beginning of the signal window
+        mask = (xcout.timearray >= min(self.dist() / vmax, xlim[1])) & \
+               (xcout.timearray <= xlim[1])
+        ylim = (xcdata[mask].min(), xcdata[mask].max())
+
         # plotting original cross-correlation
         axlist[0].plot(xcout.timearray, xcdata)
-
-        # inserting text, e.g., "Original data, SNR = 10.1"
-        x = axlist[0].get_xlim()[0] + 10
-        y = axlist[0].get_ylim()[1] / 2
-        s = "Original data, SNR = {:.1f}".format(float(xcout.SNR(vmin=vmin, vmax=vmax)))
-        axlist[0].text(x, y, s, bbox={'color': 'k', 'facecolor': 'white'})
-
-        # xlims
-        _ = axlist[0].set_xlim(xlim)
-        axlist[0].grid(True)
-        # removing labels
-        axlist[0].set_xticklabels([])
-        axlist[0].set_yticklabels([])
 
         # title
         if plot_title:
             title = xcout._plottitle(prefix='Cross-corr. ', months=months)
             axlist[0].set_title(title)
 
-        # vmin, vmax
-        vkwargs = {
-            'fontsize': 8,
-            'horizontalalignment': 'center',
-            'bbox': dict(color='k', facecolor='white')}
-        if vmin:
-            ylim = axlist[0].get_ylim()
-            axlist[0].plot(2 * [xcout.dist() / vmin], ylim, color='grey')
-            xy = (xcout.dist() / vmin, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
-            axlist[0].annotate(s='{0} km/s'.format(vmin), xy=xy, xytext=xy, **vkwargs)
-            axlist[0].set_ylim(ylim)
+        # signal window
+        for v, align in zip([vmin, vmax], ['left', 'right']):
+            axlist[0].plot(2 * [xcout.dist() / v], ylim, color='k', lw=1.5)
+            xy = (xcout.dist() / v, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
+            axlist[0].annotate(s='{} km/s'.format(v), xy=xy, xytext=xy,
+                               horizontalalignment=align, fontsize=8,
+                               bbox={'color': 'k', 'facecolor': 'white'})
 
-        if vmax:
-            ylim = axlist[0].get_ylim()
-            axlist[0].plot(2 * [xcout.dist() / vmax], ylim, color='grey')
-            xy = (xcout.dist() / vmax, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
-            axlist[0].annotate(s='{0} km/s'.format(vmax), xy=xy, xytext=xy, **vkwargs)
-            axlist[0].set_ylim(ylim)
+        # noise window
+        noise_window = [self.dist() / vmin + signal2noise_trail,
+                        self.dist() / vmin + signal2noise_trail + noise_window_size]
+        axlist[0].fill_between(x=noise_window, y1=[ylim[1], ylim[1]],
+                               y2=[ylim[0], ylim[0]], color='k', alpha=0.2)
+
+        # inserting text, e.g., "Original data, SNR = 10.1"
+        SNR = xcout.SNR(vmin=vmin, vmax=vmax,
+                        signal2noise_trail=signal2noise_trail,
+                        noise_window_size=noise_window_size)
+        axlist[0].text(x=xlim[1],
+                       y=ylim[0] + 0.85 * (ylim[1] - ylim[0]),
+                       s="Original data, SNR = {:.1f}".format(float(SNR)),
+                       fontsize=9,
+                       horizontalalignment='right',
+                       bbox={'color': 'k', 'facecolor': 'white'})
+
+        # formatting axes
+        axlist[0].set_xlim(xlim)
+        axlist[0].set_ylim(ylim)
+        axlist[0].grid(True)
+        # formatting labels
+        axlist[0].set_xticklabels([])
+        axlist[0].get_figure().canvas.draw()
+        labels = [l.get_text() for l in axlist[0].get_yticklabels()]
+        labels[2:-2] = [''] * (len(labels) - 4)
+        axlist[0].set_yticklabels(labels)
 
         # plotting band-filtered cross-correlation
-        for ax, (tmin, tmax) in zip(axlist[1:], PERIOD_BANDS):
+        for ax, (tmin, tmax) in zip(axlist[1:], bands):
             lastplot = ax is axlist[-1]
 
             dataarray = psutils.bandpass(data=xcdata, df=1.0 / xcout._get_xcorr_dt(),
                                          tmin=tmin, tmax=tmax)
+            # limits of y-axis = min/max of the cross-correlation
+            # AFTER the beginning of the signal window
+            mask = (xcout.timearray >= min(self.dist() / vmax, xlim[1])) & \
+                   (xcout.timearray <= xlim[1])
+            ylim = (dataarray[mask].min(), dataarray[mask].max())
+
             ax.plot(xcout.timearray, dataarray)
 
+            # signal window
+            for v in [vmin, vmax]:
+                ax.plot(2 * [xcout.dist() / v], ylim, color='k', lw=2)
+
+            # noise window
+            noise_window = [self.dist() / vmin + signal2noise_trail,
+                            self.dist() / vmin + signal2noise_trail + noise_window_size]
+            ax.fill_between(x=noise_window, y1=[ylim[1], ylim[1]],
+                            y2=[ylim[0], ylim[0]], color='k', alpha=0.2)
+
             # inserting text, e.g., "10 - 20 s, SNR = 10.1"
-            x = ax.get_xlim()[0] + 10
-            y = ax.get_ylim()[1] / 2
-            SNR = float(xcout.SNR(vmin=vmin, vmax=vmax, bands=[(tmin, tmax)]))
-            s = '{} - {} s, SNR = {:.1f}'.format(tmin, tmax, SNR)
-            ax.text(x, y, s, bbox={'color': 'k', 'facecolor': 'white'})
+            SNR = float(xcout.SNR(bands=[(tmin, tmax)],
+                                  vmin=vmin, vmax=vmax,
+                                  signal2noise_trail=signal2noise_trail,
+                                  noise_window_size=noise_window_size))
+            ax.text(x=xlim[1],
+                    y=ylim[0] + 0.85 * (ylim[1] - ylim[0]),
+                    s="{} - {} s, SNR = {:.1f}".format(tmin, tmax, SNR),
+                    fontsize=9,
+                    horizontalalignment='right',
+                    bbox={'color': 'k', 'facecolor': 'white'})
 
-            # plotting grid
-            ax.grid(True)
+            if lastplot:
+                # adding label to signalwindows
+                ax.text(x=self.dist() * (1 / vmin + 1 / vmax) / 2,
+                        y=ylim[0] + 0.1 * (ylim[1] - ylim[0]),
+                        s="Signal window",
+                        horizontalalignment='center',
+                        fontsize=8,
+                        bbox={'color': 'k', 'facecolor': 'white'})
 
-            # vmin, vmax
-            if vmin:
-                ylim = ax.get_ylim()
-                ax.plot(2 * [xcout.dist() / vmin], ylim, color='grey')
-                ax.set_ylim(ylim)
-            if vmax:
-                ylim = ax.get_ylim()
-                ax.plot(2 * [xcout.dist() / vmax], ylim, color='grey')
-                ax.set_ylim(ylim)
-            # removing labels
-            if not lastplot:
-                ax.set_xticklabels([])
-            ax.set_yticklabels([])
-            # xlims
+                # adding label to noise windows
+                ax.text(x=sum(noise_window) / 2,
+                        y=ylim[0] + 0.1 * (ylim[1] - ylim[0]),
+                        s="Noise window",
+                        horizontalalignment='center',
+                        fontsize=8,
+                        bbox={'color': 'k', 'facecolor': 'white'})
+
+            # formatting axes
             ax.set_xlim(xlim)
-            # axis title
+            ax.set_ylim(ylim)
+            ax.grid(True)
             if lastplot:
                 ax.set_xlabel('Time (s)')
+            # formatting labels
+            if not lastplot:
+                ax.set_xticklabels([])
+            ax.get_figure().canvas.draw()
+            labels = [l.get_text() for l in ax.get_yticklabels()]
+            labels[2:-2] = [''] * (len(labels) - 4)
+            ax.set_yticklabels(labels)
 
         if outfile:
             axlist[0].gcf().savefig(outfile, dpi=300, transparent=True)
@@ -891,7 +953,7 @@ class CrossCorrelation:
         ax.set_ylim(bbox[2:])
 
         # adjusting sizes
-        gs1.update(left=0.02, right=0.25)
+        gs1.update(left=0.03, right=0.25)
         gs2.update(left=0.30, right=0.83)
         gs3.update(left=0.85, right=0.98)
 
