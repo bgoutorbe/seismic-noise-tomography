@@ -559,6 +559,7 @@ class CrossCorrelation:
         axlist[0].set_xticklabels([])
         axlist[0].get_figure().canvas.draw()
         labels = [l.get_text() for l in axlist[0].get_yticklabels()]
+        labels[0] = labels[-1] = ''
         labels[2:-2] = [''] * (len(labels) - 4)
         axlist[0].set_yticklabels(labels)
 
@@ -600,7 +601,7 @@ class CrossCorrelation:
 
             if lastplot:
                 # adding label to signalwindows
-                ax.text(x=self.dist() * (1 / vmin + 1 / vmax) / 2,
+                ax.text(x=self.dist() * (1.0 / vmin + 1.0 / vmax) / 2.0,
                         y=ylim[0] + 0.1 * (ylim[1] - ylim[0]),
                         s="Signal window",
                         horizontalalignment='center',
@@ -626,6 +627,7 @@ class CrossCorrelation:
                 ax.set_xticklabels([])
             ax.get_figure().canvas.draw()
             labels = [l.get_text() for l in ax.get_yticklabels()]
+            labels[0] = labels[-1] = ''
             labels[2:-2] = [''] * (len(labels) - 4)
             ax.set_yticklabels(labels)
 
@@ -1056,7 +1058,7 @@ class CrossCorrelation:
         """
         E.g., 'BL.GNSB-IU.RCBR, dist=1781 km, SNR=28.8, min spect SNR=24.1, ndays=208'
         """
-        minSNR = min(self.SNR(**kwargs))
+        minSNR = min(self.SNR(bands=PERIOD_BANDS, **kwargs))
         SNR = float(self.SNR(**kwargs))
         months = kwargs.get('months')
         if not months:
