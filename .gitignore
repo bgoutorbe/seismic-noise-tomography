@@ -4,14 +4,11 @@
 *.log
 profile
 convert_pickled_data.py
-download_G.SPB.1999-01.py
-download_IRIS_data.py
+download*
 FFT_test.py
 GEOSCOPE SAC to pickle.py
 GEOSCOPE_GetPAZ.py
-get_Iris_earthquakes.py
-get_Iris_stations.py
-get_Iris_stationsinfos.py
+get_Iris*
 test_elipsoid.py
 *.pyc
 *~
