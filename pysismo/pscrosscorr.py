@@ -635,7 +635,7 @@ class CrossCorrelation:
         if fig:
             fig.show()
 
-    def FTAN(self, whiten=True, phase_corr=None, months=None, vgarray_init=None):
+    def FTAN(self, whiten=False, phase_corr=None, months=None, vgarray_init=None):
         """
         Frequency-time analysis of a cross-correlation signal.
         Calculates the Fourier transform of the cross-correlation,
@@ -715,7 +715,7 @@ class CrossCorrelation:
 
         return ampl_resampled, phase_resampled, vgcurve
 
-    def FTAN_complete(self, whiten=True, months=None, add_SNRs=True):
+    def FTAN_complete(self, whiten=False, months=None, add_SNRs=True):
         """
         Frequency-time analysis including phase-matched filter and
         seasonal variability:
@@ -803,7 +803,7 @@ class CrossCorrelation:
 
         return rawampl, rawvg, cleanampl, cleanvg
 
-    def phase_func(self, vgcurve=None, whiten=True, months=None):
+    def phase_func(self, vgcurve=None, whiten=False, months=None):
         """
         Calculates the phase from the group velocity obtained
         using method self.FTAN, following the relationship:
@@ -839,21 +839,58 @@ class CrossCorrelation:
         return interp1d(x=freqarray, y=phi)
 
     def plot_FTAN(self, rawampl=None, rawvg=None, cleanampl=None, cleanvg=None,
-                  whiten=True, showplot=True, months=None, bbox=BBOX_SMALL,
+                  whiten=False, showplot=True, months=None, bbox=BBOX_SMALL,
                   figsize=(16, 5), outfile=None):
         """
-        Plots log[ampl(T0,v)²], where ampl(T0,v) is the amplitude
-        from the FTAN analysis, and the group velocity curve,
-        before (raw FTAN) and after (clean FTAN) the phase matched filter.
+        Plots 4 panels related to frequency-time analysis:
 
-        Returns the plot figure.
+        - 1st panel contains the cross-correlation (original, and bandpass
+          filtered: see method self.plot_by_period_band)
 
+        - 2nd panel contains an image of log(ampl²) function of period T
+          and group velocity vg, where ampl is the amplitude of the
+          raw FTAN (basically, the amplitude of the envelope of the
+          cross-correlation at time t = dist / vg, after applying a Gaussian
+          bandpass filter centered at period T). The raw and clean dispersion
+          curves (group velocity function of period) are also shown.
+
+        - 3rd panel shows the same image, but for the clean FTAN (wherein the
+          phase of the cross-correlation is corrected thanks to the raw
+          dispersion curve). Also shown are the clean dispersion curve,
+          the 3-month dispersion curves and the standard deviation of the
+          group velocity calculated from these 3-month dispersion curves.
+          Only the velocities passing the default selection criteria
+          (defined in the configuration file) are plotted.
+
+        - 4th panel shows a small map with the pair of stations, with
+          bounding box *bbox* = (min lon, max lon, min lat, max lat).
+
+        The raw amplitude, rwa dispersion curve, clean amplitude and clean
+        dispersion curve of the FTAN are given in *rawampl*, *rawvg*,
+        *cleanampl*, *cleanvg* (normally from method self.FTAN_complete).
+        If not given, the FTAN is performed by calling self.FTAN_complete().
+
+        Parameter *whiten* leaves the option to whiten or not the spectrum
+        of the cross-correlatio.
+
+        Give a list of months in parameter *months* to perform the FTAN
+        for a particular subset of months.
+
+        The method returns the plot figure.
+
+        @param rawampl: 2D array containing the amplitude of the raw FTAN
         @type rawampl: L{numpy.ndarray}
+        @param rawvg: raw dispersion curve
         @type rawvg: L{DispersionCurve}
+        @param cleanampl: 2D array containing the amplitude of the clean FTAN
         @type cleanampl: L{numpy.ndarray}
+        @param cleanvg: clean dispersion curve
         @type cleanvg: L{DispersionCurve}
         @type showplot: bool
+        @param whiten: set to True to whiten the spectrum of the cross-correlation
         @type whiten: bool
+        @param months: list of months on which perform the FTAN (set to None to
+                       perform the FTAN on all months)
         @type months: list of (L{MonthYear} or (int, int))
         @rtype: L{matplotlib.figure.Figure}
         """
@@ -872,7 +909,8 @@ class CrossCorrelation:
 
         gs1 = gridspec.GridSpec(len(PERIOD_BANDS) + 1, 1, wspace=0.0, hspace=0.0)
         axlist = [fig.add_subplot(ss) for ss in gs1]
-        self.plot_by_period_band(axlist=axlist, plot_title=False, whiten=whiten)
+        self.plot_by_period_band(axlist=axlist, plot_title=False,
+                                 whiten=whiten, months=months)
 
         # ===================
         # 2st panel: raw FTAN
@@ -988,7 +1026,7 @@ class CrossCorrelation:
             s += '{} days in months {}'.format(nday, strmonths)
         return s
 
-    def _FTANplot_title(self, whiten=True, months=None):
+    def _FTANplot_title(self, whiten=False, months=None):
         """
         E.g., 'BL.GNSB-IU.RCBR, dist=1781 km, SNR=28.8, min spect SNR=24.1, ndays=208'
         """
@@ -1483,7 +1521,7 @@ class CrossCorrelationCollection(AttribDict):
         self._write_pairsstats(outprefix)
         self._write_stations(outprefix, stations=stations)
 
-    def FTANs(self, prefix=None, suffix='', whiten=True, mindist=None,
+    def FTANs(self, prefix=None, suffix='', whiten=False, mindist=None,
               minSNR=None, minspectSNR=None, monthyears=None):
         """
         Exports raw-clean FTAN plots to pdf (one page per pair)
@@ -1561,7 +1599,8 @@ class CrossCorrelationCollection(AttribDict):
                                                                   months=monthyears)
 
             # plotting raw-clean FTAN
-            fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg, showplot=False)
+            fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg,
+                               whiten=whiten, showplot=False)
             pdf.savefig(fig)
             plt.close()
 
