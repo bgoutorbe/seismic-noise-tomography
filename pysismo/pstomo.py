@@ -21,6 +21,7 @@ from inspect import getargspec
 # parsing configuration file to import some parameters
 # ====================================================
 from psconfig import (
+    SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     MINSPECTSNR, MINSPECTSNR_NOSDEV, MAXSDEV, MINNBTRIMESTER, MAXPERIOD_FACTOR,
     LONSTEP, LATSTEP, CORRELATION_LENGTH, ALPHA, BETA, LAMBDA)
 
@@ -109,17 +110,26 @@ class DispersionCurve:
         self.v_trimesters[trimester_start] = curve_trimester.v
         self._SNRs_trimesters[trimester_start] = curve_trimester._SNRs
 
-    def add_SNRs(self, xc, relfreqwin=0.2, months=None):
+    def add_SNRs(self, xc, relfreqwin=0.2, months=None, vmin=SIGNAL_WINDOW_VMIN,
+                 vmax=SIGNAL_WINDOW_VMAX, signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                 noise_window_size=NOISE_WINDOW_SIZE):
         """
         Adding spectral SNRs at each period of the dispersion curve.
         The SNRs are calculated from the cross-correlation data
         bandpassed along windows centered on freqs = 1 / periods,
-        with widths = +/- *relfreqwin* x freqs
+        with widths = +/- *relfreqwin* x freqs.
+
+        Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+        control the location of the signal window and the noise window
+        (see function xc.SNR()).
 
         @type xc: L{CrossCorrelation}
         """
         bands = [(T / (1.0 + relfreqwin), T / (1.0 - relfreqwin)) for T in self.periods]
-        self._SNRs = xc.SNR(bands, months=months)
+        self._SNRs = xc.SNR(bands, months=months,
+                            vmin=vmin, vmax=vmax,
+                            signal2noise_trail=signal2noise_trail,
+                            noise_window_size=noise_window_size)
 
     def filtered_sdevs(self):
         """

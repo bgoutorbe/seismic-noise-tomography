@@ -715,7 +715,10 @@ class CrossCorrelation:
 
         return ampl_resampled, phase_resampled, vgcurve
 
-    def FTAN_complete(self, whiten=False, months=None, add_SNRs=True):
+    def FTAN_complete(self, whiten=False, months=None, add_SNRs=True,
+                      vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+                      signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                      noise_window_size=NOISE_WINDOW_SIZE):
         """
         Frequency-time analysis including phase-matched filter and
         seasonal variability:
@@ -728,7 +731,10 @@ class CrossCorrelation:
             list of months is given
 
         Optionally, adds spectral SNRs at the periods of the clean
-        vg curve.
+        vg curve. In this case, parameters *vmin*, *vmax*,
+        *signal2noise_trail*, *noise_window_size* control the location
+        of the signal window and the noise window
+        (see function xc.SNR()).
 
         Returns raw ampl, raw vg, cleaned ampl, cleaned vg.
 
@@ -759,7 +765,10 @@ class CrossCorrelation:
         # adding spectral SNRs associated with the periods of the
         # clean vg curve
         if add_SNRs:
-            cleanvg.add_SNRs(xc, months=months)
+            cleanvg.add_SNRs(xc, months=months,
+                             vmin=vmin, vmax=vmax,
+                             signal2noise_trail=signal2noise_trail,
+                             noise_window_size=noise_window_size)
 
         if months is None:
             # set of available months (without year)
@@ -796,7 +805,10 @@ class CrossCorrelation:
                 # adding spectral SNRs associated with the periods of the
                 # clean trimester vg curve
                 if add_SNRs:
-                    cleanvg_trimester.add_SNRs(xc, months=months_of_xc)
+                    cleanvg_trimester.add_SNRs(xc, months=months_of_xc,
+                                               vmin=vmin, vmax=vmax,
+                                               signal2noise_trail=signal2noise_trail,
+                                               noise_window_size=noise_window_size)
 
                 # adding trimester vg curve
                 cleanvg.add_trimester(trimester_start, cleanvg_trimester)
@@ -840,7 +852,9 @@ class CrossCorrelation:
 
     def plot_FTAN(self, rawampl=None, rawvg=None, cleanampl=None, cleanvg=None,
                   whiten=False, showplot=True, months=None, bbox=BBOX_SMALL,
-                  figsize=(16, 5), outfile=None):
+                  figsize=(16, 5), outfile=None, vmin=SIGNAL_WINDOW_VMIN,
+                  vmax=SIGNAL_WINDOW_VMAX, signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                  noise_window_size=NOISE_WINDOW_SIZE):
         """
         Plots 4 panels related to frequency-time analysis:
 
@@ -870,6 +884,10 @@ class CrossCorrelation:
         *cleanampl*, *cleanvg* (normally from method self.FTAN_complete).
         If not given, the FTAN is performed by calling self.FTAN_complete().
 
+        Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+        control the location of the signal window and the noise window
+        (see function self.SNR()).
+
         Parameter *whiten* leaves the option to whiten or not the spectrum
         of the cross-correlatio.
 
@@ -896,9 +914,11 @@ class CrossCorrelation:
         """
         # performing FTAN analysis if needed
         if any(obj is None for obj in [rawampl, rawvg, cleanampl, cleanvg]):
-            rawampl, rawvg, cleanampl, cleanvg = self.FTAN_complete(whiten=whiten,
-                                                                    months=months,
-                                                                    add_SNRs=True)
+            rawampl, rawvg, cleanampl, cleanvg = self.FTAN_complete(
+                whiten=whiten, months=months, add_SNRs=True,
+                vmin=vmin, vmax=vmax,
+                signal2noise_trail=signal2noise_trail,
+                noise_window_size=noise_window_size)
 
         # preparing figure
         fig = plt.figure(figsize=figsize)
@@ -910,7 +930,10 @@ class CrossCorrelation:
         gs1 = gridspec.GridSpec(len(PERIOD_BANDS) + 1, 1, wspace=0.0, hspace=0.0)
         axlist = [fig.add_subplot(ss) for ss in gs1]
         self.plot_by_period_band(axlist=axlist, plot_title=False,
-                                 whiten=whiten, months=months)
+                                 whiten=whiten, months=months,
+                                 vmin=vmin, vmax=vmax,
+                                 signal2noise_trail=signal2noise_trail,
+                                 noise_window_size=noise_window_size)
 
         # ===================
         # 2st panel: raw FTAN
@@ -996,7 +1019,10 @@ class CrossCorrelation:
         gs3.update(left=0.85, right=0.98)
 
         # figure title
-        title = self._FTANplot_title(whiten=whiten, months=months)
+        title = self._FTANplot_title(whiten=whiten, months=months,
+                                     vmin=vmin, vmax=vmax,
+                                     signal2noise_trail=signal2noise_trail,
+                                     noise_window_size=noise_window_size)
         fig.suptitle(title, fontsize=14)
 
         # exporting to file
@@ -1026,11 +1052,13 @@ class CrossCorrelation:
             s += '{} days in months {}'.format(nday, strmonths)
         return s
 
-    def _FTANplot_title(self, whiten=False, months=None):
+    def _FTANplot_title(self, **kwargs):
         """
         E.g., 'BL.GNSB-IU.RCBR, dist=1781 km, SNR=28.8, min spect SNR=24.1, ndays=208'
         """
-        minSNR = min(self.SNR(bands=PERIOD_BANDS, whiten=whiten, months=months))
+        minSNR = min(self.SNR(**kwargs))
+        SNR = float(self.SNR(**kwargs))
+        months = kwargs.get('months')
         if not months:
             nday = self.nday
         else:
@@ -1039,7 +1067,7 @@ class CrossCorrelation:
         title = u"{}-{}, dist={:.0f} km, SNR={:.1f}, min spect SNR={:.1f}, ndays={}"
         title = title.format(self.station1.network + '.' + self.station1.name,
                              self.station2.network + '.' + self.station2.name,
-                             self.dist(), float(self.SNR(whiten=whiten)), minSNR, nday)
+                             self.dist(), SNR, minSNR, nday)
         return title
 
     def _get_xcorr_dt(self):
@@ -1099,10 +1127,13 @@ class CrossCorrelationCollection(AttribDict):
         return s.format(npair)
 
     def pairs(self, sort=False, minday=1, minSNR=None, mindist=None,
-              withnets=None, onlywithnets=None, pairs_subset=None):
+              withnets=None, onlywithnets=None, pairs_subset=None,
+              **kwargs):
         """
         Returns pairs of stations of cross-correlation collection
-        verifying conditions
+        verifying conditions.
+
+        Additional arguments in *kwargs* are sent to xc.SNR().
 
         @type sort: bool
         @type minday: int
@@ -1128,7 +1159,8 @@ class CrossCorrelationCollection(AttribDict):
 
         # filtering by min SNR
         if minSNR:
-            pairs = [(s1, s2) for (s1, s2) in pairs if self[s1][s2].SNR() >= minSNR]
+            pairs = [(s1, s2) for (s1, s2) in pairs
+                     if self[s1][s2].SNR(**kwargs) >= minSNR]
 
         # filtering by distance
         if mindist:
@@ -1150,10 +1182,17 @@ class CrossCorrelationCollection(AttribDict):
         return pairs
 
     def pairs_and_SNRarrays(self, pairs_subset=None, minspectSNR=None,
-                            whiten=False, verbose=False):
+                            whiten=False, verbose=False,
+                            vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+                            signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                            noise_window_size=NOISE_WINDOW_SIZE):
         """
         Returns pairs and spectral SNR array whose spectral SNRs
         are all >= minspectSNR
+
+        Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+        control the location of the signal window and the noise window
+        (see function self.SNR()).
 
         Returns {pair1: SNRarray1, pair2: SNRarray2 etc.}
 
@@ -1176,7 +1215,10 @@ class CrossCorrelationCollection(AttribDict):
             if verbose:
                 print '{0}-{1}'.format(s1, s2),
 
-            SNRarray = self[s1][s2].SNR(bands=PERIOD_BANDS, whiten=whiten)
+            SNRarray = self[s1][s2].SNR(bands=PERIOD_BANDS, whiten=whiten,
+                                        vmin=vmin, vmax=vmax,
+                                        signal2noise_trail=signal2noise_trail,
+                                        noise_window_size=noise_window_size)
             if not minspectSNR or min(SNRarray) >= minspectSNR:
                 SNRarraydict[(s1, s2)] = SNRarray
 
@@ -1382,20 +1424,28 @@ class CrossCorrelationCollection(AttribDict):
         plt.show()
 
     def plot_spectral_SNR(self, whiten=False, minSNR=None, minspectSNR=None,
-                          minday=1, mindist=None, withnets=None, onlywithnets=None):
+                          minday=1, mindist=None, withnets=None, onlywithnets=None,
+                          vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+                          signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                          noise_window_size=NOISE_WINDOW_SIZE):
         """
         Plots spectral SNRs
         """
 
         # filtering pairs
         pairs = self.pairs(minday=minday, minSNR=minSNR, mindist=mindist,
-                           withnets=withnets, onlywithnets=onlywithnets)
+                           withnets=withnets, onlywithnets=onlywithnets,
+                           vmin=vmin, vmax=vmax,
+                           signal2noise_trail=signal2noise_trail,
+                           noise_window_size=noise_window_size)
 
         # SNRarrays = dict {(station1,station2): SNR array}
-        SNRarrays = self.pairs_and_SNRarrays(pairs_subset=pairs,
-                                             minspectSNR=minspectSNR,
-                                             whiten=whiten,
-                                             verbose=True)
+        SNRarrays = self.pairs_and_SNRarrays(
+            pairs_subset=pairs, minspectSNR=minspectSNR,
+            whiten=whiten, verbose=True,
+            vmin=vmin, vmax=vmax,
+            signal2noise_trail=signal2noise_trail,
+            noise_window_size=noise_window_size)
 
         npair = len(SNRarrays)
         if not npair:
@@ -1454,24 +1504,27 @@ class CrossCorrelationCollection(AttribDict):
 
     def plot_pairs(self, minSNR=None, minspectSNR=None, minday=1, mindist=None,
                    withnets=None, onlywithnets=None, pairs_subset=None, whiten=False,
-                   stationlabel=False, bbox=BBOX_LARGE, xsize=10, **plotkwargs):
+                   stationlabel=False, bbox=BBOX_LARGE, xsize=10, plotkwargs=None,
+                   SNRkwargs=None):
         """
         Plots pairs of stations on a map
         @type bbox: tuple
         """
+        if not plotkwargs:
+            plotkwargs = {}
+        if not SNRkwargs:
+            SNRkwargs = {}
 
         # filtering pairs
         pairs = self.pairs(minday=minday, minSNR=minSNR, mindist=mindist,
                            withnets=withnets, onlywithnets=onlywithnets,
-                           pairs_subset=pairs_subset)
+                           pairs_subset=pairs_subset, **SNRkwargs)
 
         if minspectSNR:
             # plotting only pairs with all spect SNR >= minspectSNR
             SNRarraydict = self.pairs_and_SNRarrays(
-                pairs_subset=pairs,
-                minspectSNR=minspectSNR,
-                whiten=whiten,
-                verbose=True)
+                pairs_subset=pairs, minspectSNR=minspectSNR,
+                whiten=whiten, verbose=True, **SNRkwargs)
             pairs = SNRarraydict.keys()
 
         # nb of pairs
@@ -1522,7 +1575,10 @@ class CrossCorrelationCollection(AttribDict):
         self._write_stations(outprefix, stations=stations)
 
     def FTANs(self, prefix=None, suffix='', whiten=False, mindist=None,
-              minSNR=None, minspectSNR=None, monthyears=None):
+              minSNR=None, minspectSNR=None, monthyears=None,
+              vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+              signal2noise_trail=SIGNAL2NOISE_TRAIL,
+              noise_window_size=NOISE_WINDOW_SIZE):
         """
         Exports raw-clean FTAN plots to pdf (one page per pair)
         and clean dispersion curves to pickle file.
@@ -1535,6 +1591,10 @@ class CrossCorrelationCollection(AttribDict):
                        [_minspectSNR=...][_month-year_month-year]
 
         e.g.: ./output/FTAN/FTAN_whitenedxc_minspectSNR=10
+
+        Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+        control the location of the signal window and the noise window
+        (see function xc.SNR()).
 
         @type prefix: str or unicode
         @type suffix: str or unicode
@@ -1573,13 +1633,18 @@ class CrossCorrelationCollection(AttribDict):
         pdf = PdfPages(pdfpath)
 
         # filtering pairs
-        pairs = self.pairs(sort=True, minSNR=minSNR, mindist=mindist)
+        pairs = self.pairs(sort=True, minSNR=minSNR, mindist=mindist,
+                           vmin=vmin, vmax=vmax,
+                           signal2noise_trail=signal2noise_trail,
+                           noise_window_size=noise_window_size)
         if minspectSNR:
             # plotting only pairs with all spect SNR >= minspectSNR
-            SNRarraydict = self.pairs_and_SNRarrays(pairs_subset=pairs,
-                                                    minspectSNR=minspectSNR,
-                                                    whiten=whiten,
-                                                    verbose=True)
+            SNRarraydict = self.pairs_and_SNRarrays(
+                pairs_subset=pairs, minspectSNR=minspectSNR,
+                whiten=whiten, verbose=True,
+                vmin=vmin, vmax=vmax,
+                signal2noise_trail=signal2noise_trail,
+                noise_window_size=noise_window_size)
             pairs = sorted(SNRarraydict.keys())
 
         s = ("Exporting FTANs of {0} pairs to file {1}.pdf\n"
@@ -1595,12 +1660,18 @@ class CrossCorrelationCollection(AttribDict):
             assert isinstance(xc, CrossCorrelation)
 
             # complete FTAN analysis
-            rawampl, rawvg, cleanampl, cleanvg = xc.FTAN_complete(whiten=whiten,
-                                                                  months=monthyears)
+            rawampl, rawvg, cleanampl, cleanvg = xc.FTAN_complete(
+                whiten=whiten, months=monthyears,
+                vmin=vmin, vmax=vmax,
+                signal2noise_trail=signal2noise_trail,
+                noise_window_size=noise_window_size)
 
             # plotting raw-clean FTAN
             fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg,
-                               whiten=whiten, showplot=False)
+                               whiten=whiten, showplot=False,
+                               vmin=vmin, vmax=vmax,
+                               signal2noise_trail=signal2noise_trail,
+                               noise_window_size=noise_window_size)
             pdf.savefig(fig)
             plt.close()
 
