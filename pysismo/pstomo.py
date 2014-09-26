@@ -23,7 +23,7 @@ from inspect import getargspec
 from psconfig import (
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     MINSPECTSNR, MINSPECTSNR_NOSDEV, MAXSDEV, MINNBTRIMESTER, MAXPERIOD_FACTOR,
-    LONSTEP, LATSTEP, CORRELATION_LENGTH, ALPHA, BETA, LAMBDA)
+    LONSTEP, LATSTEP, CORRELATION_LENGTH, ALPHA, BETA, LAMBDA, FTAN_VELOCITIES_STEP)
 
 # ========================
 # Constants and parameters
@@ -553,11 +553,22 @@ class VelocityMap:
                                 for c in self.disp_curves])
         vels = np.array(vels)
         sigmav = np.array(sigmav)
+        sigmav_isnan = np.isnan(sigmav)
+
+        # if the discretization step in the velocities space is dv,
+        # it means that a velocity v is actually anything between
+        # v-dv/2 and v+dv/2, so the standard deviation cannot be
+        # less than the standard dev of a uniform distribution of
+        # width dv, which is dv / sqrt(12)
+        old_settings = np.seterr(invalid='ignore')  # ignoring NaN-related warning
+        minsigmav = FTAN_VELOCITIES_STEP / np.sqrt(12)
+        sigmav[~sigmav_isnan & (sigmav < minsigmav)] = minsigmav
+        _ = np.seterr(**old_settings)  # back to previous settings
 
         # where std dev cannot be estimated (std dev = nan),
         # assigning 3 times the mean std dev of the period
         # following Bensen et al. (2008)
-        sigmav[np.isnan(sigmav)] = 3 * sigmav[-np.isnan(sigmav)].mean()
+        sigmav[sigmav_isnan] = 3 * sigmav[~sigmav_isnan].mean()
 
         # ======================================================
         # setting up reference velocity and data vector
@@ -786,7 +797,8 @@ class VelocityMap:
 
             # fitting the above function to observed heights along nodes,
             # in array Ri
-            popt, _ = curve_fit(f=cone_height, xdata=rdata, ydata=Ri, p0=[1, 2*rmin])
+            popt, _ = curve_fit(f=cone_height, xdata=rdata, ydata=Ri, p0=[1, 2*rmin],
+                                maxfev=10000)
             _, r0 = popt
             # reslution cannot be better than *rmin*
             r0 = max(rmin, r0)

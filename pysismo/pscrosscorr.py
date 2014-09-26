@@ -646,11 +646,16 @@ class CrossCorrelation:
         center periods, and calculates the filtered analytic
         signal back in time domain.
 
+        Set whiten=True to whiten the spectrum of the cross-corr.
+
+        Give a function of frequency in *phase_corr* to include a
+        phase correction.
+
         Returns the amplitude matrix A(T0,v) and phase matrix phi(T0,v),
         that is, the amplitude and phase function of velocity v of the
         analytic signal filtered around period T0.
         Also extracts and returns the group velocity curve from the
-        amplitude matrix (an initial guess my be given to accelerate
+        amplitude matrix (an initial guess may be given to accelerate
         vg curve extraction).
 
         FTAN periods in variable *FTAN_PERIODS*
@@ -738,6 +743,8 @@ class CrossCorrelation:
         of the signal window and the noise window
         (see function xc.SNR()).
 
+        Set whiten=True to whiten the spectra of the cross-corr.
+
         Returns raw ampl, raw vg, cleaned ampl, cleaned vg.
 
         @type whiten: bool
@@ -752,7 +759,8 @@ class CrossCorrelation:
             xc = xc.whiten(inplace=False)
 
         # raw FTAN (no need to whiten any more)
-        rawampl, _, rawvg = xc.FTAN(whiten=False, months=months)
+        rawampl, _, rawvg = xc.FTAN(whiten=False,
+                                    months=months)
 
         # phase function from raw vg curve
         phase_corr = xc.phase_func(vgcurve=rawvg,
@@ -817,7 +825,7 @@ class CrossCorrelation:
 
         return rawampl, rawvg, cleanampl, cleanvg
 
-    def phase_func(self, vgcurve=None, whiten=False, months=None):
+    def phase_func(self, vgcurve=None, whiten=False, normalize_ampl=True, months=None):
         """
         Calculates the phase from the group velocity obtained
         using method self.FTAN, following the relationship:
@@ -836,7 +844,9 @@ class CrossCorrelation:
         # FTAN analysis to extract array of group velocities
         # if not provided by user
         if vgcurve is None:
-            vgcurve = self.FTAN(whiten=whiten, months=months)[2]
+            vgcurve = self.FTAN(whiten=whiten,
+                                normalize_ampl=normalize_ampl,
+                                months=months)[2]
 
         freqarray = 1.0 / vgcurve.periods[::-1]
         vgarray = vgcurve.v[::-1]
@@ -853,9 +863,10 @@ class CrossCorrelation:
         return interp1d(x=freqarray, y=phi)
 
     def plot_FTAN(self, rawampl=None, rawvg=None, cleanampl=None, cleanvg=None,
-                  whiten=False, showplot=True, months=None, bbox=BBOX_SMALL,
-                  figsize=(16, 5), outfile=None, vmin=SIGNAL_WINDOW_VMIN,
-                  vmax=SIGNAL_WINDOW_VMAX, signal2noise_trail=SIGNAL2NOISE_TRAIL,
+                  whiten=False, months=None, showplot=True, normalize_ampl=True,
+                  logscale=True, bbox=BBOX_SMALL, figsize=(16, 5), outfile=None,
+                  vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
+                  signal2noise_trail=SIGNAL2NOISE_TRAIL,
                   noise_window_size=NOISE_WINDOW_SIZE):
         """
         Plots 4 panels related to frequency-time analysis:
@@ -863,7 +874,7 @@ class CrossCorrelation:
         - 1st panel contains the cross-correlation (original, and bandpass
           filtered: see method self.plot_by_period_band)
 
-        - 2nd panel contains an image of log(ampl²) function of period T
+        - 2nd panel contains an image of log(ampl²) (or ampl) function of period T
           and group velocity vg, where ampl is the amplitude of the
           raw FTAN (basically, the amplitude of the envelope of the
           cross-correlation at time t = dist / vg, after applying a Gaussian
@@ -881,7 +892,7 @@ class CrossCorrelation:
         - 4th panel shows a small map with the pair of stations, with
           bounding box *bbox* = (min lon, max lon, min lat, max lat).
 
-        The raw amplitude, rwa dispersion curve, clean amplitude and clean
+        The raw amplitude, raw dispersion curve, clean amplitude and clean
         dispersion curve of the FTAN are given in *rawampl*, *rawvg*,
         *cleanampl*, *cleanvg* (normally from method self.FTAN_complete).
         If not given, the FTAN is performed by calling self.FTAN_complete().
@@ -890,8 +901,12 @@ class CrossCorrelation:
         control the location of the signal window and the noise window
         (see function self.SNR()).
 
-        Parameter *whiten* leaves the option to whiten or not the spectrum
-        of the cross-correlatio.
+        Set whiten=True to whiten the spectrum of the cross-correlation.
+
+        Set normalize_ampl=True to normalize the plotted amplitude (so
+        that the max amplitude = 1 at each period).
+
+        Set logscale=True to plot log(ampl²) instead of ampl.
 
         Give a list of months in parameter *months* to perform the FTAN
         for a particular subset of months.
@@ -909,9 +924,13 @@ class CrossCorrelation:
         @type showplot: bool
         @param whiten: set to True to whiten the spectrum of the cross-correlation
         @type whiten: bool
+        @param normalize_ampl: set to True to normalize amplitude
+        @type normalize_ampl: bool
         @param months: list of months on which perform the FTAN (set to None to
                        perform the FTAN on all months)
         @type months: list of (L{MonthYear} or (int, int))
+        @param logscale: set to True to plot log(ampl²), to False to plot ampl
+        @type logscale: bool
         @rtype: L{matplotlib.figure.Figure}
         """
         # performing FTAN analysis if needed
@@ -921,6 +940,14 @@ class CrossCorrelation:
                 vmin=vmin, vmax=vmax,
                 signal2noise_trail=signal2noise_trail,
                 noise_window_size=noise_window_size)
+
+        if normalize_ampl:
+            # normalizing amplitude at each period before plotting it
+            # (so that the max = 1)
+            for a in rawampl:
+                a[...] /= a.max()
+            for a in cleanampl:
+                a[...] /= a.max()
 
         # preparing figure
         fig = plt.figure(figsize=figsize)
@@ -946,7 +973,7 @@ class CrossCorrelation:
 
         extent = (min(RAWFTAN_PERIODS), max(RAWFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
-        m = np.log10(rawampl.transpose() ** 2)
+        m = np.log10(rawampl.transpose() ** 2) if logscale else rawampl.transpose()
         ax.imshow(m, aspect='auto', origin='lower', extent=extent)
         ax.set_xlabel("period (sec)")
         ax.set_ylabel("Velocity (km/sec)")
@@ -973,7 +1000,7 @@ class CrossCorrelation:
 
         extent = (min(CLEANFTAN_PERIODS), max(CLEANFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
-        m = np.log10(cleanampl.transpose() ** 2)
+        m = np.log10(cleanampl.transpose() ** 2) if logscale else cleanampl.transpose()
         ax.imshow(m, aspect='auto', origin='lower', extent=extent)
         ax.set_xlabel("period (sec)")
         ax.set_ylabel("Velocity (km/sec)")
@@ -1576,14 +1603,16 @@ class CrossCorrelationCollection(AttribDict):
         self._write_pairsstats(outprefix)
         self._write_stations(outprefix, stations=stations)
 
-    def FTANs(self, prefix=None, suffix='', whiten=False, mindist=None,
+    def FTANs(self, prefix=None, suffix='', whiten=False,
+              normalize_ampl=True, logscale=True, mindist=None,
               minSNR=None, minspectSNR=None, monthyears=None,
               vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
               signal2noise_trail=SIGNAL2NOISE_TRAIL,
               noise_window_size=NOISE_WINDOW_SIZE):
         """
         Exports raw-clean FTAN plots to pdf (one page per pair)
-        and clean dispersion curves to pickle file.
+        and clean dispersion curves to pickle file by calling
+        plot_FTAN() for each cross-correlation.
 
         pdf is exported to *prefix*[_*suffix*].pdf
         dispersion curves are exported to *prefix*[_*suffix*].pickle
@@ -1597,6 +1626,13 @@ class CrossCorrelationCollection(AttribDict):
         Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
         control the location of the signal window and the noise window
         (see function xc.SNR()).
+
+        Set whiten=True to whiten the spectrum of the cross-correlation.
+
+        Set normalize_ampl=True to normalize the plotted amplitude (so
+        that the max amplitude = 1 at each period).
+
+        Set logscale=True to plot log(ampl²) instead of ampl.
 
         @type prefix: str or unicode
         @type suffix: str or unicode
@@ -1612,11 +1648,11 @@ class CrossCorrelationCollection(AttribDict):
             if whiten:
                 parts.append('whitenedxc')
             if mindist:
-                parts.append('mindist={0}'.format(mindist))
+                parts.append('mindist={}'.format(mindist))
             if minSNR:
-                parts.append('minSNR={0}'.format(minSNR))
+                parts.append('minSNR={}'.format(minSNR))
             if minspectSNR:
-                parts.append('minspectSNR={0}'.format(minspectSNR))
+                parts.append('minspectSNR={}'.format(minspectSNR))
             if monthyears:
                 parts.extend('{:02d}-{}'.format(m, y) for m, y in monthyears)
         else:
@@ -1670,7 +1706,10 @@ class CrossCorrelationCollection(AttribDict):
 
             # plotting raw-clean FTAN
             fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg,
-                               whiten=whiten, showplot=False,
+                               whiten=whiten,
+                               normalize_ampl=normalize_ampl,
+                               logscale=logscale,
+                               showplot=False,
                                vmin=vmin, vmax=vmax,
                                signal2noise_trail=signal2noise_trail,
                                noise_window_size=noise_window_size)
@@ -1679,6 +1718,8 @@ class CrossCorrelationCollection(AttribDict):
 
             # appending clean vg curve
             cleanvgcurves.append(cleanvg)
+
+        print "\nSaving files..."
 
         # closing pdf
         pdf.close()
@@ -1985,9 +2026,10 @@ def _extract_vgarray(amplmatrix, velocities, periodmask=None, optimizecurve=True
     @type vgarray_init: L{numpy.ndarray}
     @rtype: L{numpy.ndarray}
     """
-    # if an initial guess for vg array is given, we simply apply
-    # the optimization procedure using it as starting guess
-    if not vgarray_init is None:
+
+    if not vgarray_init is None and optimizecurve:
+        # if an initial guess for vg array is given, we simply apply
+        # the optimization procedure using it as starting guess
         return _optimize_vg(amplmatrix=amplmatrix,
                             velocities=velocities,
                             vg0=vgarray_init)[0]
@@ -2022,7 +2064,7 @@ def _extract_vgarray(amplmatrix, velocities, periodmask=None, optimizecurve=True
 
             # we select the (vg, ampl) curve for which the jump wrt previous
             # vg (not nan) is minimum
-            lastvg = lambda vgarray: vgarray[:iperiod][-np.isnan(vgarray[:iperiod])][-1]
+            lastvg = lambda vgarray: vgarray[:iperiod][~np.isnan(vgarray[:iperiod])][-1]
             vgjump = lambda (vgarray, amplarray): abs(lastvg(vgarray) - vg)
             vgarray, amplarray = min(vgampl_arrays, key=vgjump)
 
@@ -2042,7 +2084,7 @@ def _extract_vgarray(amplmatrix, velocities, periodmask=None, optimizecurve=True
         for vgarray, amplarray in unfilledcurves:
             # inserting vel (which locally maximizes amplitude) for which
             # the jump wrt the previous (not nan) vg of the curve is minimum
-            lastvg = vgarray[:iperiod][-np.isnan(vgarray[:iperiod])][-1]
+            lastvg = vgarray[:iperiod][~np.isnan(vgarray[:iperiod])][-1]
             vgjump = lambda arg: abs(lastvg - velocities[arg])
             argmax = min(argsmax, key=vgjump)
             vgarray[iperiod] = velocities[argmax]

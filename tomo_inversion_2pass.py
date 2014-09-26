@@ -44,12 +44,16 @@ from pysismo.psconfig import FTAN_DIR, TOMO_DIR
 
 # selecting dispersion curves
 flist = sorted(glob.glob(os.path.join(FTAN_DIR, 'FTAN*.pickle*')))
-print 'Select file(s) containing dispersion curves to process: [All]'
-print '0 - All'
+print 'Select file(s) containing dispersion curves to process: [All except backups]'
+print '0 - All except backups (*~)'
 print '\n'.join('{} - {}'.format(i + 1, os.path.basename(f))
                 for i, f in enumerate(flist))
+
 res = raw_input('\n')
-pickle_files = flist if not res else [flist[int(i)-1] for i in res.split()]
+if not res:
+    pickle_files = [f for f in flist if f[-1] != '~']
+else:
+    pickle_files = [flist[int(i)-1] for i in res.split()]
 
 # loop on pickled curves
 for pickle_file in pickle_files:
