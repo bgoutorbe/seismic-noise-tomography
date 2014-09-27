@@ -32,7 +32,7 @@ import datetime as dt
 
 from pysismo.psconfig import (
     MSEED_DIR, DATALESS_DIR, STATIONXML_DIR, CROSSCORR_DIR,
-    USE_DATALESSPAZ, USE_STATIONXML, CROSSCORR_STATIONS_SUBSET,
+    USE_DATALESSPAZ, USE_STATIONXML, CROSSCORR_STATIONS_SUBSET, CROSSCORR_SKIPLOCS,
     FIRSTDAY, LASTDAY, MINFILL, FREQMIN, FREQMAX, CORNERS, ZEROPHASE, PERIOD_RESAMPLE,
     ONEBIT_NORM, FREQMIN_EARTHQUAKE, FREQMAX_EARTHQUAKE, WINDOW_TIME, WINDOW_FREQ,
     CROSSCORR_TMAX, CALC_SPECTRA, SPECTRA_STATIONS, SPECTRA_FIRSTDAY, SPECTRA_LASTDAY,
@@ -176,7 +176,7 @@ for day in daylist:
 
         # Removing traces from locations to skip,
         # and traces not from 1st loc if several locs
-        psutils.clean_stream(st, skiplocs=psutils.CROSSCORR_SKIPLOCS)
+        psutils.clean_stream(st, skiplocs=CROSSCORR_SKIPLOCS)
 
         # Data fill for current day (also to verify nb of traces)
         fill = psutils.get_fill(st, starttime=day, endtime=day + ONEDAY)
