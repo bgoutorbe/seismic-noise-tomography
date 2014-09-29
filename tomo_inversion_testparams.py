@@ -1,8 +1,8 @@
 """
-This script performs a tomographic inversions of a set of
+This script performs tomographic inversions of a set of
 observed travel-times (equivalent to observed velocities)
 between pairs of stations, systematically varying
-the filtering and inversion parameters: period, grid size,
+the selection and inversion parameters: period, grid size,
 min SNR etc.
 
 The inversion is an implementation of the algorithm described
@@ -40,6 +40,10 @@ FTANs on cross-correlations calculated with 3 months of data,
 Jan-Feb-Mar, Feb-Mar-Apr ... Dec-Jan-Feb) for which the SNR
 is >= *minspectSNR*, and if at least *minnbtrimester* trimester
 velocities are available.
+
+The default value of all the parameters mentioned above is
+defined in the configuration file, and can be overridden
+when the inversion is performed, in pstomo.VelocityMap().
 
 The results are exported in a pdf file in dir *TOMO_DIR*
 """
@@ -117,13 +121,23 @@ for pickle_file in pickle_files:
         # - *alpha*, *corr_length* control the spatial smoothing term
         # - *beta*, *lambda_* control the weighted norm penalization term
         #
+        # Note that if no value is given for some parameter, then the
+        # inversion will use the default value defined in the configuration
+        # file.
+        #
         # (See doc of VelocityMap for a complete description of the input
         # arguments.)
 
-        v = pstomo.VelocityMap(dispersion_curves=curves, period=period, verbose=False,
-                               lonstep=grid_step, latstep=grid_step,
-                               minspectSNR=minspectSNR, correlation_length=corr_length,
-                               alpha=alpha, beta=beta, lambda_=lambda_)
+        v = pstomo.VelocityMap(dispersion_curves=curves,
+                               period=period,
+                               verbose=False,
+                               lonstep=grid_step,
+                               latstep=grid_step,
+                               minspectSNR=minspectSNR,
+                               correlation_length=corr_length,
+                               alpha=alpha,
+                               beta=beta,
+                               lambda_=lambda_)
 
         # creating a figure summing up the results of the inversion:
         # - 1st panel = map of velocities or velocity anomalies
