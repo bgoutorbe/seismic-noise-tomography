@@ -5,6 +5,42 @@ between pairs of stations, systematically varying
 the filtering and inversion parameters: period, grid size,
 min SNR etc.
 
+The inversion is an implementation of the algorithm described
+by Barmin et al., "A fast and reliable method for surface wave
+tomography", Pure Appl. Geophys. (2001). The travel paths are
+assumed to follow great circles between pairs of stations, so
+that the relationship between the data (travel-time anomalies
+between pairs of stations) and the parameters (slowness anomalies
+at grid nodes) is linear. The penalty function is then composed
+of three terms: the first represents the misfit between observed
+and predicted data; the second is a spatial smoothing condition;
+the third penalizes the weighted norm of the parameters:
+
+- the spatial smoothing is controlled by a strength parameter,
+  *alpha*, and a correlation length, *corr_length*;
+
+- the norm penalization is controlled by a strength parameter,
+  *beta*, and decreases as the path density increases, as
+  exp[- *lambda* * path density]
+
+Before the inversion is performed, several selection criteria
+are applied to filter out low quality observed velocities.
+The criteria are as follows:
+
+1) period <= distance * *maxperiodfactor* (normally, distance / 12)
+2) for velocities having a standard deviation associated:
+   - standard deviation <= *maxsdev*
+   - SNR >= *minspectSNR*
+3) for velocities NOT having a standard deviation associated:
+   - SNR >= *minspectSNR_nosdev*
+
+The standard deviation of a velocity is estimated from the set
+of trimester velocities (i.e., velocities estimated by performing
+FTANs on cross-correlations calculated with 3 months of data,
+Jan-Feb-Mar, Feb-Mar-Apr ... Dec-Jan-Feb) for which the SNR
+is >= *minspectSNR*, and if at least *minnbtrimester* trimester
+velocities are available.
+
 The results are exported in a pdf file in dir *TOMO_DIR*
 """
 
@@ -73,20 +109,38 @@ for pickle_file in pickle_files:
              "= {} km, alpha = {}, beta = {}, lambda = {}")
         print s.format(period, grid_step, minspectSNR, corr_length, alpha, beta, lambda_)
 
-        # velocity map at period, with given parameters
+        # Performing the tomographic inversion to produce a velocity map
+        # at period = *period* , with parameters given above:
+        # - *lonstep*, *latstep* control the internode distance of the grid
+        # - *minnbtrimester*, *maxsdev*, *minspectSNR*, *minspectSNR_nosdev*
+        #   correspond to the selection criteria
+        # - *alpha*, *corr_length* control the spatial smoothing term
+        # - *beta*, *lambda_* control the weighted norm penalization term
+        #
+        # (See doc of VelocityMap for a complete description of the input
+        # arguments.)
+
         v = pstomo.VelocityMap(dispersion_curves=curves, period=period, verbose=False,
                                lonstep=grid_step, latstep=grid_step,
                                minspectSNR=minspectSNR, correlation_length=corr_length,
                                alpha=alpha, beta=beta, lambda_=lambda_)
 
-        # figure
+        # creating a figure summing up the results of the inversion:
+        # - 1st panel = map of velocities or velocity anomalies
+        # - 2nd panel = map of interstation paths and path densities
+        # - 3rd panel = resolution map
+        #
+        # See doc of VelocityMap.plot(), VelocityMap.plot_velocity(),
+        # VelocityMap.plot_pathdensity(), VelocityMap.plot_resolution()
+        # for a detailed description of the input arguments.
+
         title = ("Period = {0} s, grid {1} x {1} deg, min SNR = {2}, corr. length "
                  "= {3} km, alpha = {4}, beta = {5}, lambda = {6} ({7} paths)")
         title = title.format(period, grid_step, minspectSNR, corr_length,
                              alpha, beta, lambda_, len(v.paths))
         fig = v.plot(title=title, showplot=False)
 
-        # exporting plot in pdf
+        # exporting plot to pdf
         pdf.savefig(fig)
         plt.close()
 

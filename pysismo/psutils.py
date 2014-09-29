@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 import pyproj
+import itertools as it
 from pyPdf import PdfFileReader, PdfFileWriter
 
 # ====================================================
@@ -462,9 +463,9 @@ def combine_pdf_pages(pdfpath, pagesgroups, verbose=False):
         print
 
     # exporting merged pdf into temporary output file
+    fo = create_tmpfile('wb')
     if verbose:
-        print "Exporting merged pdf in file tmp.pdf"
-    fo = open('tmp.pdf', 'wb')
+        print "Exporting merged pdf in file {}".format(fo.name)
     pdfout.write(fo)
 
     # closing files
@@ -475,7 +476,20 @@ def combine_pdf_pages(pdfpath, pagesgroups, verbose=False):
     if verbose:
         print "Moving exported pdf to: " + pdfpath
     os.remove(pdfpath)
-    os.rename('tmp.pdf', pdfpath)
+    os.rename(fo.name, pdfpath)
+
+
+def create_tmpfile(*args, **kwargs):
+    """
+    Creates, opens and returns the first file tmp<i> that does
+    not exist (with i = integer).
+    *args and **kwargs are sent to open() function
+    """
+    for i in it.count():
+        filepath = 'tmp{}'.format(i)
+        if not os.path.exists(filepath):
+            f = open(filepath, *args, **kwargs)
+            return f
 
 
 def groupbykey(iterable, key=None):

@@ -13,6 +13,42 @@ rejecting the pairs whose observed travel-time is too
 different from the predidcted travel-time. The difference
 threshold is given in *MAX_TRAVELTIME_RELDIFF*.
 
+The inversion is an implementation of the algorithm described
+by Barmin et al., "A fast and reliable method for surface wave
+tomography", Pure Appl. Geophys. (2001). The travel paths are
+assumed to follow great circles between pairs of stations, so
+that the relationship between the data (travel-time anomalies
+between pairs of stations) and the parameters (slowness anomalies
+at grid nodes) is linear. The penalty function is then composed
+of three terms: the first represents the misfit between observed
+and predicted data; the second is a spatial smoothing condition;
+the third penalizes the weighted norm of the parameters:
+
+- the spatial smoothing is controlled by a strength parameter,
+  *alpha*, and a correlation length, *corr_length*;
+
+- the norm penalization is controlled by a strength parameter,
+  *beta*, and decreases as the path density increases, as
+  exp[- *lambda* * path density]
+
+Before the inversion is performed, several selection criteria
+are applied to filter out low quality observed velocities.
+The criteria are as follows:
+
+1) period <= distance * *maxperiodfactor* (normally, distance / 12)
+2) for velocities having a standard deviation associated:
+   - standard deviation <= *maxsdev*
+   - SNR >= *minspectSNR*
+3) for velocities NOT having a standard deviation associated:
+   - SNR >= *minspectSNR_nosdev*
+
+The standard deviation of a velocity is estimated from the set
+of trimester velocities (i.e., velocities estimated by performing
+FTANs on cross-correlations calculated with 3 months of data,
+Jan-Feb-Mar, Feb-Mar-Apr ... Dec-Jan-Feb) for which the SNR
+is >= *minspectSNR*, and if at least *minnbtrimester* trimester
+velocities are available.
+
 The results are exported in a pdf file in dir *TOMO_DIR*
 """
 
@@ -29,7 +65,7 @@ PERIODS = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
 
 # max relative diff between observed/predicted travel-time
 # to keep pair in the second pass
-MAX_TRAVELTIME_RELDIFF = 0.05
+MAX_TRAVELTIME_RELDIFF = 0.15
 
 # parameters for the 1st and 2nd pass, respectively
 GRID_STEPS = (1.0, 1.0)
@@ -78,7 +114,7 @@ for pickle_file in pickle_files:
 
     # performing tomographic inversions at given periods
     for period in PERIODS:
-        print "Doing period = {} s".format(period)
+        print "\nDoing period = {} s".format(period)
 
         # 2-pass inversion
         skippairs = []
@@ -90,7 +126,17 @@ for pickle_file in pickle_files:
                            CORR_LENGTHS[passnb], ALPHAS[passnb],
                            BETAS[passnb], LAMBDAS[passnb])
 
-            # tomographic inversion
+            # Performing the tomographic inversion to produce a velocity map
+            # at period = *period* , with parameters given above:
+            # - *lonstep*, *latstep* control the internode distance of the grid
+            # - *minnbtrimester*, *maxsdev*, *minspectSNR*, *minspectSNR_nosdev*
+            #   correspond to the selection criteria
+            # - *alpha*, *corr_length* control the spatial smoothing term
+            # - *beta*, *lambda_* control the weighted norm penalization term
+            #
+            # (See doc of VelocityMap for a complete description of the input
+            # arguments.)
+
             v = pstomo.VelocityMap(dispersion_curves=curves,
                                    period=period,
                                    skippairs=skippairs,
@@ -103,8 +149,17 @@ for pickle_file in pickle_files:
                                    beta=BETAS[passnb],
                                    lambda_=LAMBDAS[passnb])
 
-            # figure (highlighting paths with large diff
-            # between obs/predicted travel-time)
+            # creating a figure summing up the results of the inversion:
+            # - 1st panel = map of velocities or velocity anomalies
+            # - 2nd panel = map of interstation paths and path densities
+            #               (highlighting paths with large diff
+            #                between obs/predicted travel-time)
+            # - 3rd panel = resolution map
+            #
+            # See doc of VelocityMap.plot(), VelocityMap.plot_velocity(),
+            # VelocityMap.plot_pathdensity(), VelocityMap.plot_resolution()
+            # for a detailed description of the input arguments.
+
             title = ("Period = {0} s, {1} pass, grid {2} x {2} deg, "
                      "min SNR = {3}, corr. length = {4} km, alpha = {5}, "
                      "beta = {6}, lambda = {7} ({8} paths, {9} rejected)")
@@ -116,7 +171,7 @@ for pickle_file in pickle_files:
             fig = v.plot(title=title, showplot=False,
                          terr_threshold=MAX_TRAVELTIME_RELDIFF)
 
-            # exporting plot in pdf
+            # exporting plot to pdf
             pdf.savefig(fig)
             plt.close()
 
