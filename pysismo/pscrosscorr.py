@@ -689,6 +689,12 @@ class CrossCorrelation:
         FTAN periods in variable *FTAN_PERIODS*
         FTAN velocities in variable *FTAN_VELOCITIES*
 
+        See. e.g., Levshin & Ritzwoller, "Automated detection,
+        extraction, and measurement of regional surface waves",
+        Pure Appl. Geoph. (2001) and Bensen et al., "Processing
+        seismic ambient noise data to obtain reliable broad-band
+        surface wave dispersion measurements", Geophys. J. Int. (2007).
+
         @type whiten: bool
         @type phase_corr: L{scipy.interpolate.interpolate.interp1d}
         @type months: list of (L{MonthYear} or (int, int))
@@ -775,6 +781,12 @@ class CrossCorrelation:
 
         Returns raw ampl, raw vg, cleaned ampl, cleaned vg.
 
+        See. e.g., Levshin & Ritzwoller, "Automated detection,
+        extraction, and measurement of regional surface waves",
+        Pure Appl. Geoph. (2001) and Bensen et al., "Processing
+        seismic ambient noise data to obtain reliable broad-band
+        surface wave dispersion measurements", Geophys. J. Int. (2007).
+
         @type whiten: bool
         @type months: list of (L{MonthYear} or (int, int))
         @type add_SNRs: bool
@@ -853,7 +865,7 @@ class CrossCorrelation:
 
         return rawampl, rawvg, cleanampl, cleanvg
 
-    def phase_func(self, vgcurve=None, whiten=False, normalize_ampl=True, months=None):
+    def phase_func(self, vgcurve=None, whiten=False, months=None):
         """
         Calculates the phase from the group velocity obtained
         using method self.FTAN, following the relationship:
@@ -873,7 +885,6 @@ class CrossCorrelation:
         # if not provided by user
         if vgcurve is None:
             vgcurve = self.FTAN(whiten=whiten,
-                                normalize_ampl=normalize_ampl,
                                 months=months)[2]
 
         freqarray = 1.0 / vgcurve.periods[::-1]
@@ -1669,6 +1680,12 @@ class CrossCorrelationCollection(AttribDict):
 
         Set logscale=True to plot log(ampl²) instead of ampl.
 
+        See. e.g., Levshin & Ritzwoller, "Automated detection,
+        extraction, and measurement of regional surface waves",
+        Pure Appl. Geoph. (2001) and Bensen et al., "Processing
+        seismic ambient noise data to obtain reliable broad-band
+        surface wave dispersion measurements", Geophys. J. Int. (2007).
+
         @type prefix: str or unicode
         @type suffix: str or unicode
         @type minSNR: float
@@ -1960,7 +1977,6 @@ def load_pickled_xcorr_interactive(xcorr_dir=CROSSCORR_DIR, xcorr_files='xcorr*.
     return xc
 
 
-# noinspection PyTypeChecker,PyTypeChecker
 def FTAN(x, dt, periods, alpha, phase_corr=None):
     """
     Frequency-time analysis of a time series.
@@ -1972,6 +1988,12 @@ def FTAN(x, dt, periods, alpha, phase_corr=None):
     Returns the amplitude/phase matrices A(f0,t) and phi(f0,t),
     that is, the amplitude/phase function of time t of the
     analytic signal filtered around period T0 = 1 / f0.
+
+    See. e.g., Levshin & Ritzwoller, "Automated detection,
+    extraction, and measurement of regional surface waves",
+    Pure Appl. Geoph. (2001) and Bensen et al., "Processing
+    seismic ambient noise data to obtain reliable broad-band
+    surface wave dispersion measurements", Geophys. J. Int. (2007).
 
     @param dt: sample spacing
     @type dt: float

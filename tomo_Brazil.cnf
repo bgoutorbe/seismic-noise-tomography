@@ -53,7 +53,8 @@ PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra
 # - plot spectral SNR, in plot_spectral_SNR()
 # - estimate min spectral SNR, in FTANs()
 
-PERIOD_BANDS = [[5, 15], [10, 20], [15, 25], [20, 30], [25, 35]]
+PERIOD_BANDS = [[4, 7], [7, 15], [10, 22], [15, 30], [20, 35]]
+# (these bands focus on periods ~5, 10, 15, 20, 25 seconds)
 
 # default parameters to define the signal and noise windows used to
 # estimate the SNR:
