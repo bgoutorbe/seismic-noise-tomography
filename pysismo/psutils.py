@@ -5,6 +5,7 @@ General utilities
 
 import obspy.signal.filter
 import numpy as np
+from numpy.fft import rfft, irfft, rfftfreq
 import os
 import shutil
 import shapefile
@@ -175,21 +176,76 @@ def local_maxima_indices(x, include_edges=True):
     return indices
 
 
-def bandpass(data, df, tmin, tmax, corners=2, zerophase=True):
+def bandpass(data, dt, filtertype='Butterworth', **kwargs):
     """
-    Bandpassing data of array *data* between tmin-tmax
+    Bandpassing array *data* (whose sampling step is *dt*)
+    using either a Butterworth filter (filtertype='Butterworth')
+    or a Gaussian filter (filtertype='Gaussian')
+
+    Additional arguments in *kwargs* are sent to
+    bandpass_butterworth() (arguments: periodmin, periodmax,
+    corners, zerophase) or bandpass_gaussian() (arguments:
+    period, alpha)
 
     @type data: L{numpy.ndarray}
-    @type df: float
-    @type tmin: float or int or None
-    @type tmax: float or int or None
+    @type dt: float
+    @rtype: L{numpy.ndarray}
+    """
+    if filtertype.lower().strip() == 'butterworth':
+        return bandpass_butterworth(data, dt, **kwargs)
+    elif filtertype.lower().strip() == 'gaussian':
+        return bandpass_gaussian(data, dt, **kwargs)
+    else:
+        raise Exception("Unknown filter: " + filtertype)
+
+
+def bandpass_butterworth(data, dt, periodmin, periodmax, corners=2, zerophase=True):
+    """
+    Bandpassing data (in array *data*) between periods
+    *periodmin* and *periodmax* with a Butterworth filter.
+    *dt* is the sampling interval of the data.
+
+    @type data: L{numpy.ndarray}
+    @type dt: float
+    @type periodmin: float or int or None
+    @type periodmax: float or int or None
     @type corners: int
     @type zerophase: bool
     @rtype: L{numpy.ndarray}
     """
-    return obspy.signal.filter.bandpass(data=data, freqmin=1.0 / tmax,
-                                        freqmax=1.0 / tmin, df=df,
+    return obspy.signal.filter.bandpass(data=data, freqmin=1.0 / periodmax,
+                                        freqmax=1.0 / periodmin, df=1.0 / dt,
                                         corners=corners, zerophase=zerophase)
+
+
+def bandpass_gaussian(data, dt, period, alpha):
+    """
+    Bandpassing real data (in array *data*) with a Gaussian
+    filter centered at *period* whose width is controlled
+    by *alpha*:
+
+      exp[-alpha * ((f-f0)/f0)**2],
+
+    with f the frequency and f0 = 1 / *period*.
+    *dt* is the sampling interval of the data.
+
+    @type data: L{numpy.ndarray}
+    @type dt: float
+    @type period: float
+    @type alpha: float
+    @rtype: L{numpy.ndarray}
+    """
+    # Fourier transform
+    fft_data = rfft(data)
+    # aray of frequencies
+    freq = rfftfreq(len(data), d=dt)
+
+    # bandpassing data
+    f0 = 1.0 / period
+    fft_data *= np.exp(-alpha * ((freq - f0) / f0) ** 2)
+
+    # back to time domain
+    return irfft(fft_data, n=len(data))
 
 
 def dist(lons1, lats1, lons2, lats2):

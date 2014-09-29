@@ -23,7 +23,8 @@ from inspect import getargspec
 from psconfig import (
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     MINSPECTSNR, MINSPECTSNR_NOSDEV, MAXSDEV, MINNBTRIMESTER, MAXPERIOD_FACTOR,
-    LONSTEP, LATSTEP, CORRELATION_LENGTH, ALPHA, BETA, LAMBDA, FTAN_VELOCITIES_STEP)
+    LONSTEP, LATSTEP, CORRELATION_LENGTH, ALPHA, BETA, LAMBDA,
+    FTAN_ALPHA, FTAN_VELOCITIES_STEP, PERIOD_RESAMPLE)
 
 # ========================
 # Constants and parameters
@@ -110,14 +111,17 @@ class DispersionCurve:
         self.v_trimesters[trimester_start] = curve_trimester.v
         self._SNRs_trimesters[trimester_start] = curve_trimester._SNRs
 
-    def add_SNRs(self, xc, relfreqwin=0.2, months=None, vmin=SIGNAL_WINDOW_VMIN,
-                 vmax=SIGNAL_WINDOW_VMAX, signal2noise_trail=SIGNAL2NOISE_TRAIL,
+    def add_SNRs(self, xc, filter_alpha=FTAN_ALPHA, months=None,
+                 vmin=SIGNAL_WINDOW_VMIN,
+                 vmax=SIGNAL_WINDOW_VMAX,
+                 signal2noise_trail=SIGNAL2NOISE_TRAIL,
                  noise_window_size=NOISE_WINDOW_SIZE):
         """
         Adding spectral SNRs at each period of the dispersion curve.
         The SNRs are calculated from the cross-correlation data
-        bandpassed along windows centered on freqs = 1 / periods,
-        with widths = +/- *relfreqwin* x freqs.
+        bandpassed with narrow Gaussian filters (similar to the filter
+        used in the FTAN) centered at self.periods, and width controlled
+        by *filter_alpha*. (See psutils.bandpass_gaussian().)
 
         Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
         control the location of the signal window and the noise window
@@ -125,11 +129,16 @@ class DispersionCurve:
 
         @type xc: L{CrossCorrelation}
         """
-        bands = [(T / (1.0 + relfreqwin), T / (1.0 - relfreqwin)) for T in self.periods]
-        self._SNRs = xc.SNR(bands, months=months,
-                            vmin=vmin, vmax=vmax,
+        centerperiods_and_alpha = zip(self.periods, [filter_alpha] * len(self.periods))
+        self._SNRs = xc.SNR(centerperiods_and_alpha=centerperiods_and_alpha,
+                            months=months, vmin=vmin, vmax=vmax,
                             signal2noise_trail=signal2noise_trail,
                             noise_window_size=noise_window_size)
+
+    def get_SNRs(self, **kwargs):
+        if self._SNRs is None:
+            self.add_SNRs(**kwargs)
+        return self._SNRs
 
     def filtered_sdevs(self):
         """
@@ -544,9 +553,11 @@ class VelocityMap:
                                 minnbtrimester=minnbtrimester,
                                 maxsdev=maxsdev)
 
-        # valid dispersion curves (velocity != nan at period)
+        # valid dispersion curves (velocity != nan at period) and
+        # associated interstation distances
         self.disp_curves = [c for c in dispersion_curves
                             if not np.isnan(c.filtered_vel_sdev_SNR(self.period)[0])]
+        dists = np.array([c.dist() for c in self.disp_curves])
 
         # getting (non nan) velocities and std devs at period
         vels, sigmav, _ = zip(*[c.filtered_vel_sdev_SNR(self.period)
@@ -555,15 +566,22 @@ class VelocityMap:
         sigmav = np.array(sigmav)
         sigmav_isnan = np.isnan(sigmav)
 
-        # if the discretization step in the velocities space is dv,
+        # If the resolution in the velocities space is dv,
         # it means that a velocity v is actually anything between
         # v-dv/2 and v+dv/2, so the standard deviation cannot be
         # less than the standard dev of a uniform distribution of
-        # width dv, which is dv / sqrt(12)
-        old_settings = np.seterr(invalid='ignore')  # ignoring NaN-related warning
-        minsigmav = FTAN_VELOCITIES_STEP / np.sqrt(12)
-        sigmav[~sigmav_isnan & (sigmav < minsigmav)] = minsigmav
-        _ = np.seterr(**old_settings)  # back to previous settings
+        # width dv, which is dv / sqrt(12). Note that:
+        #
+        #   dv = max(dv_FTAN, dt_xc * v^2/dist),
+        #
+        # with dv_FTAN the intrinsic velocity discretization step
+        # of the FTAN, and dt_xc the sampling interval of the
+        # cross-correlation.
+
+        dv = np.maximum(FTAN_VELOCITIES_STEP, PERIOD_RESAMPLE * vels**2 / dists)
+        minsigmav = dv / np.sqrt(12)
+        sigmav[~sigmav_isnan] = np.maximum(sigmav[~sigmav_isnan],
+                                           minsigmav[~sigmav_isnan])
 
         # where std dev cannot be estimated (std dev = nan),
         # assigning 3 times the mean std dev of the period
@@ -576,9 +594,6 @@ class VelocityMap:
         # ======================================================
         if verbose:
             print 'Setting up reference velocity (v0) data vector (d)'
-        lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
-        lons2, lats2 = zip(*[c.station2.coord for c in self.disp_curves])
-        dists = psutils.dist(lons1=lons1, lats1=lats1, lons2=lons2, lats2=lats2)
 
         # reference velocity = inverse of mean slowness
         # mean slowness = slowness implied by observed travel-times
@@ -597,6 +612,8 @@ class VelocityMap:
         np.fill_diagonal(self.Cinv, 1.0 / sigmad**2)
 
         # spatial grid for tomographic inversion
+        lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
+        lons2, lats2 = zip(*[c.station2.coord for c in self.disp_curves])
         lonmin = np.floor(min(lons1 + lons2))
         nlon = np.ceil((max(lons1 + lons2) - lonmin) / lonstep) + 1
         latmin = np.floor(min(lats1 + lats2))

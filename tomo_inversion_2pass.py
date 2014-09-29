@@ -10,7 +10,7 @@ travel-time (i.e., for each pair of stations).
 
 A second tomographic inversion is then performed, after
 rejecting the pairs whose observed travel-time is too
-different from the preidcted travel-time. The difference
+different from the predidcted travel-time. The difference
 threshold is given in *MAX_TRAVELTIME_RELDIFF*.
 
 The results are exported in a pdf file in dir *TOMO_DIR*

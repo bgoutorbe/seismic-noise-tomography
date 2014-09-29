@@ -324,21 +324,34 @@ class CrossCorrelation:
             a[:] = irfft(ffta / weight, n=npts)
 
             # bandpass to avoid low/high freq noise
-            obj.dataarray = psutils.bandpass(data=a, df=1.0 / xcout._get_xcorr_dt(),
-                                             tmin=bandpass_tmin, tmax=bandpass_tmax)
+            obj.dataarray = psutils.bandpass_butterworth(data=a,
+                                                         dt=xcout._get_xcorr_dt(),
+                                                         periodmin=bandpass_tmin,
+                                                         periodmax=bandpass_tmax)
 
         xcout.whitened = True
         return xcout
 
-    def SNR(self, bands=None, whiten=False, vmin=SIGNAL_WINDOW_VMIN,
-            vmax=SIGNAL_WINDOW_VMAX, signal2noise_trail=SIGNAL2NOISE_TRAIL,
-            noise_window_size=NOISE_WINDOW_SIZE, months=None):
+    def SNR(self, periodbands=None, centerperiods_and_alpha=None,
+            whiten=False, months=None,
+            vmin=SIGNAL_WINDOW_VMIN,
+            vmax=SIGNAL_WINDOW_VMAX,
+            signal2noise_trail=SIGNAL2NOISE_TRAIL,
+            noise_window_size=NOISE_WINDOW_SIZE):
         """
         [spectral] signal-to-noise ratio, calculated as the peak
         of the absolute amplitude in the signal window divided by
         the standard deviation in the noise window.
-        If period bands are given (in *bands*), then for each band
-        the SNR is calculated after band-passing the cross-correlation.
+
+        If period bands are given (in *periodbands*, as a list of
+        (periodmin, periodmax)), then for each band the SNR is
+        calculated after band-passing the cross-correlation using
+        a butterworth filter.
+
+        If center periods and alpha are given (in *centerperiods_and_alpha*,
+        as a list of (center period, alpha)), then for each center
+        period and alpha the SNR is calculated after band-passing
+        the cross-correlation using a Gaussian filter
 
         The signal window is defined by *vmin* and *vmax*:
 
@@ -350,7 +363,7 @@ class CrossCorrelation:
           t > dist/*vmin* + *signal2noise_trail*
           t < dist/*vmin* + *signal2noise_trail* + *noise_window_size*
 
-        @type bands: (list of (float, float))
+        @type periodbands: (list of (float, float))
         @type whiten: bool
         @type vmin: float
         @type vmax: float
@@ -369,16 +382,29 @@ class CrossCorrelation:
         # cross-corr of desired months
         xcdata = xcout._get_monthyears_xcdataarray(months=months)
 
+        # filter type and associated arguments
+        if periodbands:
+            filtertype = 'Butterworth'
+            kwargslist = [{'periodmin': band[0], 'periodmax': band[1]}
+                          for band in periodbands]
+        elif centerperiods_and_alpha:
+            filtertype = 'Gaussian'
+            kwargslist = [{'period': period, 'alpha': alpha}
+                          for period, alpha in centerperiods_and_alpha]
+        else:
+            filtertype = None
+            kwargslist = [{}]
+
         SNR = []
-        if not bands:
-            bands = [None]
-        for band in bands:
-            if band:
-                dataarray = psutils.bandpass(data=xcdata,
-                                             df=1.0 / xcout._get_xcorr_dt(),
-                                             tmin=band[0], tmax=band[1])
-            else:
+        for filterkwargs in kwargslist:
+            if not filtertype:
                 dataarray = xcdata
+            else:
+                # bandpass filtering data before calculating SNR
+                dataarray = psutils.bandpass(data=xcdata,
+                                             dt=xcout._get_xcorr_dt(),
+                                             filtertype=filtertype,
+                                             **filterkwargs)
 
             # signal window
             tau_min = xcout.dist() / vmax
@@ -567,8 +593,10 @@ class CrossCorrelation:
         for ax, (tmin, tmax) in zip(axlist[1:], bands):
             lastplot = ax is axlist[-1]
 
-            dataarray = psutils.bandpass(data=xcdata, df=1.0 / xcout._get_xcorr_dt(),
-                                         tmin=tmin, tmax=tmax)
+            dataarray = psutils.bandpass_butterworth(data=xcdata,
+                                                     dt=xcout._get_xcorr_dt(),
+                                                     periodmin=tmin,
+                                                     periodmax=tmax)
             # limits of y-axis = min/max of the cross-correlation
             # AFTER the beginning of the signal window
             mask = (xcout.timearray >= min(self.dist() / vmax, xlim[1])) & \
@@ -588,7 +616,7 @@ class CrossCorrelation:
                             y2=[ylim[0], ylim[0]], color='k', alpha=0.2)
 
             # inserting text, e.g., "10 - 20 s, SNR = 10.1"
-            SNR = float(xcout.SNR(bands=[(tmin, tmax)],
+            SNR = float(xcout.SNR(periodbands=[(tmin, tmax)],
                                   vmin=vmin, vmax=vmax,
                                   signal2noise_trail=signal2noise_trail,
                                   noise_window_size=noise_window_size))
@@ -874,12 +902,13 @@ class CrossCorrelation:
         - 1st panel contains the cross-correlation (original, and bandpass
           filtered: see method self.plot_by_period_band)
 
-        - 2nd panel contains an image of log(ampl²) (or ampl) function of period T
-          and group velocity vg, where ampl is the amplitude of the
+        - 2nd panel contains an image of log(ampl²) (or ampl) function of period
+          T and group velocity vg, where ampl is the amplitude of the
           raw FTAN (basically, the amplitude of the envelope of the
           cross-correlation at time t = dist / vg, after applying a Gaussian
           bandpass filter centered at period T). The raw and clean dispersion
-          curves (group velocity function of period) are also shown.
+          curves (group velocity function of period) and SNR function period
+          are also shown.
 
         - 3rd panel shows the same image, but for the clean FTAN (wherein the
           phase of the cross-correlation is corrected thanks to the raw
@@ -964,11 +993,11 @@ class CrossCorrelation:
                                  signal2noise_trail=signal2noise_trail,
                                  noise_window_size=noise_window_size)
 
-        # ===================
-        # 2st panel: raw FTAN
-        # ===================
+        # =========================
+        # 2st panel: raw FTAN + SNR
+        # =========================
 
-        gs2 = gridspec.GridSpec(1, 2, wspace=0.2, hspace=0.0)
+        gs2 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0)
         ax = fig.add_subplot(gs2[0, 0])
 
         extent = (min(RAWFTAN_PERIODS), max(RAWFTAN_PERIODS),
@@ -985,18 +1014,29 @@ class CrossCorrelation:
                 lw=2, label='raw FTAN')
         ax.plot(cleanvg.periods, cleanvg.v, color='black',
                 lw=2, label='clean FTAN')
-        ax.legend()
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
         ax.plot([cutoffperiod, cutoffperiod], ylim, color='grey')
-        # setting initial extent
+
+        # adding SNR function of period (on a separate y-axis)
+        ax2 = ax.twinx()
+        ax2.plot(cleanvg.periods, cleanvg.get_SNRs(), color='green', lw=2)
+        # fake plot for SNR to appear in legeng
+        ax.plot([-1, 0], [0, 0], lw=2, color='green', label='SNR')
+        ax2.set_ylabel('SNR', color='green')
+        for tl in ax2.get_yticklabels():
+            tl.set_color('green')
+
+        # setting legend and initial extent
+        ax.legend()
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
 
         # =====================
         # 3nd panel: clean FTAN
         # =====================
-        ax = fig.add_subplot(gs2[0, 1])
+        gs3 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0)
+        ax = fig.add_subplot(gs3[0, 0])
 
         extent = (min(CLEANFTAN_PERIODS), max(CLEANFTAN_PERIODS),
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
@@ -1029,8 +1069,8 @@ class CrossCorrelation:
         # 4rd panel: tectonic provinces and pair
         # ======================================
 
-        gs3 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0.0)
-        ax = fig.add_subplot(gs3[0, 0])
+        gs4 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0.0)
+        ax = fig.add_subplot(gs4[0, 0])
 
         psutils.basemap(ax, labels=False, axeslabels=False)
         x = (self.station1.coord[0], self.station2.coord[0])
@@ -1044,14 +1084,12 @@ class CrossCorrelation:
 
         # adjusting sizes
         gs1.update(left=0.03, right=0.25)
-        gs2.update(left=0.30, right=0.83)
-        gs3.update(left=0.85, right=0.98)
+        gs2.update(left=0.30, right=0.535)
+        gs3.update(left=0.605, right=0.84)
+        gs4.update(left=0.85, right=0.98)
 
-        # figure title
-        title = self._FTANplot_title(whiten=whiten, months=months,
-                                     vmin=vmin, vmax=vmax,
-                                     signal2noise_trail=signal2noise_trail,
-                                     noise_window_size=noise_window_size)
+        # figure title, e.g., 'BL.GNSB-IU.RCBR, dist=1781 km, ndays=208'
+        title = self._FTANplot_title(months=months)
         fig.suptitle(title, fontsize=14)
 
         # exporting to file
@@ -1081,22 +1119,19 @@ class CrossCorrelation:
             s += '{} days in months {}'.format(nday, strmonths)
         return s
 
-    def _FTANplot_title(self, **kwargs):
+    def _FTANplot_title(self, months=None):
         """
-        E.g., 'BL.GNSB-IU.RCBR, dist=1781 km, SNR=28.8, min spect SNR=24.1, ndays=208'
+        E.g., 'BL.GNSB-IU.RCBR, dist=1781 km, ndays=208'
         """
-        minSNR = min(self.SNR(bands=PERIOD_BANDS, **kwargs))
-        SNR = float(self.SNR(**kwargs))
-        months = kwargs.get('months')
         if not months:
             nday = self.nday
         else:
             nday = sum(monthxc.nday for monthxc in self.monthxcs
                        if monthxc.month in months)
-        title = u"{}-{}, dist={:.0f} km, SNR={:.1f}, min spect SNR={:.1f}, ndays={}"
+        title = u"{}-{}, dist={:.0f} km, ndays={}"
         title = title.format(self.station1.network + '.' + self.station1.name,
                              self.station2.network + '.' + self.station2.name,
-                             self.dist(), SNR, minSNR, nday)
+                             self.dist(), nday)
         return title
 
     def _get_xcorr_dt(self):
@@ -1244,7 +1279,7 @@ class CrossCorrelationCollection(AttribDict):
             if verbose:
                 print '{0}-{1}'.format(s1, s2),
 
-            SNRarray = self[s1][s2].SNR(bands=PERIOD_BANDS, whiten=whiten,
+            SNRarray = self[s1][s2].SNR(periodbands=PERIOD_BANDS, whiten=whiten,
                                         vmin=vmin, vmax=vmax,
                                         signal2noise_trail=signal2noise_trail,
                                         noise_window_size=noise_window_size)

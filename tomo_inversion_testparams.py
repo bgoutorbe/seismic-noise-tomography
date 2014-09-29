@@ -50,12 +50,12 @@ for pickle_file in pickle_files:
     curves = pickle.load(f)
     f.close()
 
-    # opening pdf file (setting name as "tomography_xxx.pdf")
+    # opening pdf file (setting name as "testparams-tomography_xxx.pdf")
     try:
         os.makedirs(TOMO_DIR)
     except:
         pass
-    basename = os.path.basename(pickle_file).replace('FTAN', 'tomography')
+    basename = os.path.basename(pickle_file).replace('FTAN', 'testparams-tomography')
     pdfname = os.path.join(TOMO_DIR, os.path.splitext(basename)[0]) + '.pdf'
     print "Maps will be exported to pdf file: " + pdfname
     if os.path.exists(pdfname):
