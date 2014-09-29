@@ -5,6 +5,11 @@ between pairs of stations, systematically varying
 the selection and inversion parameters: period, grid size,
 min SNR etc.
 
+The script takes as input one or several binary files containing a
+list of dispersion curves (previously calculated with, e.g., script
+dispersion_curves.py). A dispersion curve is an instance of
+pstomo.DispersionCurve exported in binary format with module pickle.
+
 The inversion is an implementation of the algorithm described
 by Barmin et al., "A fast and reliable method for surface wave
 tomography", Pure Appl. Geophys. (2001). The travel paths are

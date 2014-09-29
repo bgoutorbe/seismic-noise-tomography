@@ -3,6 +3,11 @@ This script performs a two-pass tomographic inversion of a set of
 observed travel-times (equivalent to observed velocities) between
 pairs of stations, at various periods.
 
+The script takes as input one or several binary files containing a
+list of dispersion curves (previously calculated with, e.g., script
+dispersion_curves.py). A dispersion curve is an instance of
+pstomo.DispersionCurve exported in binary format with module pickle.
+
 In the first pass, an overdamped tomographic inversion is
 performed, and the relative differences between observed/
 predicted travel-time are estimated for each observed
