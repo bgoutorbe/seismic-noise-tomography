@@ -73,20 +73,14 @@ RAWFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
 CLEANFTAN_PERIODS_STARTSTOPSTEP = [5.0, 30.1, 1.0]
 FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
 
-# smoothing parameter of FTAN analysis
+# default width parameter of the narrow Gaussian bandpass filters
+# applied in the FTAN. The bandpass filters take the form:
+#
+#  exp[-FTAN_ALPHA * ((f-f0)/f0)**2],
+#
+# where f is the frequency and f0 the center frequency of the filter.
 
 FTAN_ALPHA = 20
-
-# Suggested values from bibliography:
-#
-# Shapiro et al. [2005], S California: curves 6-18 s, maps 7.5-15 s, extension ~5-10°
-# PERIOD_BANDS = [[7, 15], [10, 20], [15, 25]]
-#
-# Yang et al. [2007], Europe: curves and maps 8-50 s, extension ~30°
-# PERIOD_BANDS = [[8, 25], [20, 50], [33, 67], [50, 100], [70, 150]]
-#
-# Lin et al. [2007], New Zealand: curves 5-50 s, maps 7-25 s, extension ~15°
-# PERIOD_BANDS = [[5, 14], [10, 25], [15, 35], [20, 50]]
 
 
 # ============
