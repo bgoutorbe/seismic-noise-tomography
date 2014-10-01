@@ -5,7 +5,15 @@
 
 This script reads seismic waveform data from a set of stations, and
 calculates the cross-correlations between all pairs of stations
-(or optionally displays their amplitude spectra).
+(or optionally displays their amplitude spectra). The data (in
+miniseed format) must be located in folder *MSEED_DIR*. The stations
+information (coordinates, instrument response) can be read from
+dataless seed files (if *USE_DATALESSPAZ* = True) located in
+folder *DATALESS_DIR*, and/or stationXML files (if *USE_STATIONXML* =
+True) located in folder *STATIONXML_DIR*. Note that two different
+stations MUST HAVE DIFFERENT NAMES, even if they do not belong to
+the same network. Also, one given station cannot have several
+sets of coordinates: if so, it will be skipped.
 
 The implemented algorithm follows the lines of Bensen et al.,
 "Processing seismic ambient noise data to obtain reliable broad-band

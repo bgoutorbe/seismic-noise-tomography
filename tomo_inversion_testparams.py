@@ -11,8 +11,9 @@ min SNR etc.
 
 The script takes as input one or several binary files containing a
 list of dispersion curves (previously calculated with, e.g., script
-dispersion_curves.py). A dispersion curve is an instance of
-pstomo.DispersionCurve exported in binary format with module pickle.
+dispersion_curves.py), located in folder *FTAN_DIR*. A dispersion
+curve is an instance of pstomo.DispersionCurve exported in binary
+format with module pickle.
 
 The inversion is an implementation of the algorithm described
 by Barmin et al., "A fast and reliable method for surface wave

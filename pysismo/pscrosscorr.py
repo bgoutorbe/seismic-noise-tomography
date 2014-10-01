@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Module managing cross-correlation operations
 """
@@ -914,7 +913,7 @@ class CrossCorrelation:
         - 1st panel contains the cross-correlation (original, and bandpass
           filtered: see method self.plot_by_period_band)
 
-        - 2nd panel contains an image of log(ampl²) (or ampl) function of period
+        - 2nd panel contains an image of log(ampl^2) (or ampl) function of period
           T and group velocity vg, where ampl is the amplitude of the
           raw FTAN (basically, the amplitude of the envelope of the
           cross-correlation at time t = dist / vg, after applying a Gaussian
@@ -947,7 +946,7 @@ class CrossCorrelation:
         Set normalize_ampl=True to normalize the plotted amplitude (so
         that the max amplitude = 1 at each period).
 
-        Set logscale=True to plot log(ampl²) instead of ampl.
+        Set logscale=True to plot log(ampl^2) instead of ampl.
 
         Give a list of months in parameter *months* to perform the FTAN
         for a particular subset of months.
@@ -970,7 +969,7 @@ class CrossCorrelation:
         @param months: list of months on which perform the FTAN (set to None to
                        perform the FTAN on all months)
         @type months: list of (L{MonthYear} or (int, int))
-        @param logscale: set to True to plot log(ampl²), to False to plot ampl
+        @param logscale: set to True to plot log(ampl^2), to False to plot ampl
         @type logscale: bool
         @rtype: L{matplotlib.figure.Figure}
         """
@@ -1682,7 +1681,7 @@ class CrossCorrelationCollection(AttribDict):
         Set normalize_ampl=True to normalize the plotted amplitude (so
         that the max amplitude = 1 at each period).
 
-        Set logscale=True to plot log(ampl²) instead of ampl.
+        Set logscale=True to plot log(ampl^2) instead of ampl.
 
         See. e.g., Levshin & Ritzwoller, "Automated detection,
         extraction, and measurement of regional surface waves",

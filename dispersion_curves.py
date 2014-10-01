@@ -23,10 +23,10 @@ a 'clean' FTAN and extract a 'clean' dispersion curve.
 
 This script takes as input one or several binary files containing a
 set of cross-correlations (previously calculated with, e.g., script
-crosscorrelation.py). A set of cross-correlations is an instance of
-pscrosscorr.CrossCorrelationCollection exported in binary format
-with module pickle. Two file per set of cross-correlations are
-produced:
+crosscorrelation.py), located in folder *CROSSCORR_DIR*. A set of
+cross-correlations is an instance of pscrosscorr.CrossCorrelationCollection
+exported in binary format with module pickle. Two file per set of
+cross-correlations are produced:
 
 - a pdf file illustrating the FTAN procedure on all cross-correlations:
   one page per cross-correlation, containing the original and
