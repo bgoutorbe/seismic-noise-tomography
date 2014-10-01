@@ -194,8 +194,6 @@ def moving_avg(a, halfwindow, mask=None):
     # rolling_a[:, 1] = [0  a0 a1 a2 ... aN 0 ]
     # ...
     # rolling_a[:, 4] = [a2 a3 ...    aN  0  0]
-    #
-    # n       = [ 3  4  5 ...  5  4  3]
 
     npt = 2 * halfwindow + 1  # total size of the averaging window
     rolling_a = as_strided(a_padded,
