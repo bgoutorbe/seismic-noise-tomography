@@ -412,7 +412,10 @@ def norm(u):
 
 def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
     """
-    Plots base map: coasts and tectonic provinces/labels
+    Plots base map: coasts (file *COAST_SHP*), tectonic provinces
+    file  *TECTO_SHP*) and labels (file *TECTO_LABELS*). Labels are
+    plotted if *labels* = True. Tectonic provinces are filled
+    (according to colors in dict *TECTO_COLORS*) if *fill* = True.
     """
     fig = None
     if not ax:
@@ -420,37 +423,39 @@ def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
         ax = fig.add_subplot(111)
 
     # plotting coasts
-    sf = shapefile.Reader(COAST_SHP)
-    for shape in sf.shapes():
-        # adding polygon(s)
-        parts = list(shape.parts) + [len(shape.points)]
-        partlims = zip(parts[:-1], parts[1:])
-        for i1, i2 in partlims:
-            points = shape.points[i1:i2]
-            x, y = zip(*points)
-            ax.plot(x, y, '-', lw=1, color='k')
+    if COAST_SHP:
+        sf = shapefile.Reader(COAST_SHP)
+        for shape in sf.shapes():
+            # adding polygon(s)
+            parts = list(shape.parts) + [len(shape.points)]
+            partlims = zip(parts[:-1], parts[1:])
+            for i1, i2 in partlims:
+                points = shape.points[i1:i2]
+                x, y = zip(*points)
+                ax.plot(x, y, '-', lw=1, color='k')
 
     # plotting tectonic provinces
-    sf = shapefile.Reader(TECTO_SHP)
-    for sr in sf.shapeRecords():
-        tectcategory = sr.record[0]
-        color = next((TECTO_COLORS[k] for k in TECTO_COLORS.keys()
-                     if k in tectcategory), 'white')
-        shape = sr.shape
-        parts = list(shape.parts) + [len(shape.points)]
-        partlims = zip(parts[:-1], parts[1:])
-        if fill:
-            polygons = [Polygon(shape.points[i1:i2]) for i1, i2 in partlims]
-            tectprovince = PatchCollection(polygons, facecolor=color,
-                                           edgecolor='black', linewidths=0.5)
-            ax.add_collection(tectprovince)
-        else:
-            for i1, i2 in partlims:
-                x, y = zip(*shape.points[i1:i2])
-                ax.plot(x, y, '-', color='gray', lw=0.5)
+    if TECTO_SHP:
+        sf = shapefile.Reader(TECTO_SHP)
+        for sr in sf.shapeRecords():
+            tectcategory = sr.record[0]
+            color = next((TECTO_COLORS[k] for k in TECTO_COLORS.keys()
+                         if k in tectcategory), 'white')
+            shape = sr.shape
+            parts = list(shape.parts) + [len(shape.points)]
+            partlims = zip(parts[:-1], parts[1:])
+            if fill:
+                polygons = [Polygon(shape.points[i1:i2]) for i1, i2 in partlims]
+                tectprovince = PatchCollection(polygons, facecolor=color,
+                                               edgecolor='black', linewidths=0.5)
+                ax.add_collection(tectprovince)
+            else:
+                for i1, i2 in partlims:
+                    x, y = zip(*shape.points[i1:i2])
+                    ax.plot(x, y, '-', color='gray', lw=0.5)
 
-    if labels:
-        # plotting tectonic labels withint bounding box
+    if labels and TECTO_LABELS:
+        # plotting tectonic labels within bounding box
         sf = shapefile.Reader(TECTO_LABELS)
         for sr in sf.shapeRecords():
             label, angle = sr.record

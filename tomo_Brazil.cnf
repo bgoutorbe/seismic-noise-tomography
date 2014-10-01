@@ -15,13 +15,32 @@ TOMO_DIR = ./output/tomography              ; dir of tomographic inversion resul
 [maps]
 #=====
 
-# paths to shapefiles (coasts, tectonic provinces and labels)
+# paths to shapefiles (coasts, tectonic provinces and labels), used
+# to plot maps:
+#
+# - `COAST_SHP` should be a shapefile containing lines or polygons
+#   representing coasts (you can also include borders).
+#
+# - `TECTO_SHP` should be a shapefile containing polygons representing
+#   tectonic provinces, AND AN ATTRIBUTE TABLE whose first field
+#   contains the province's category, which will be used to affect
+#   a color to the polygon (see below).
+#
+# - `TECTO_LABELS` should be a shapefile containing points representing
+#   the location of the labels associated with the tectonic provinces,
+#   AND AN ATTRIBUTE TABLE whose first field contains the label (characters
+#   '\' will be replaced with line breaks), and the second field contains
+#   the label's angle.
+#
+# You can set any of these files to `null`.
 
 COAST_SHP = ./shapefiles/SouthAmericaCoasts.shp
 TECTO_SHP = ./shapefiles/SouthAmericaTectonicElements.shp
 TECTO_LABELS = ./shapefiles/SouthAmericaTectonicElementsLabels.shp
 
-# colors of tectonic provinces (JSON dict)
+# JSON dict giving the color of the tectonic provinces according to their
+# category (first field of the attribute table of `TECTO_SHP`, see above).
+# A category not appearing in this dict will be filled with white.
 
 TECTO_COLORS = {
     "Archean": [0.98, 0.88, 1, 1],

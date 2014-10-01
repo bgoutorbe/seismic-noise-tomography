@@ -66,6 +66,21 @@ CROSSCORR_DIR = config.get('paths', 'CROSSCORR_DIR')
 FTAN_DIR = config.get('paths', 'FTAN_DIR')
 TOMO_DIR = config.get('paths', 'TOMO_DIR')
 
+# ---------------
+# maps parameters
+# ---------------
+
+# paths to shapefiles (coasts, tectonic provinces and labels)
+COAST_SHP = config.get('maps', 'COAST_SHP')
+TECTO_SHP = config.get('maps', 'TECTO_SHP')
+TECTO_LABELS = config.get('maps', 'TECTO_LABELS')
+
+# colors of tectonic provinces
+TECTO_COLORS = json.loads(config.get('maps', 'TECTO_COLORS'))
+
+# bounding boxes
+BBOX_LARGE = json.loads(config.get('maps', 'BBOX_LARGE'))
+BBOX_SMALL = json.loads(config.get('maps', 'BBOX_SMALL'))
 
 # --------------------------------------
 # cross-correlation / spectra parameters
@@ -204,20 +219,3 @@ BETA = config.getfloat('tomography', 'BETA')
 # With a value of 0.15, penalization becomes strong when path density < ~20
 # With a value of 0.30, penalization becomes strong when path density < ~10
 LAMBDA = config.getfloat('tomography', 'LAMBDA')
-
-
-# ---------------
-# maps parameters
-# ---------------
-
-# paths to shapefiles (coasts, tectonic provinces and labels)
-COAST_SHP = config.get('maps', 'COAST_SHP')
-TECTO_SHP = config.get('maps', 'TECTO_SHP')
-TECTO_LABELS = config.get('maps', 'TECTO_LABELS')
-
-# colors of tectonic provinces
-TECTO_COLORS = json.loads(config.get('maps', 'TECTO_COLORS'))
-
-# bounding boxes
-BBOX_LARGE = json.loads(config.get('maps', 'BBOX_LARGE'))
-BBOX_SMALL = json.loads(config.get('maps', 'BBOX_SMALL'))
