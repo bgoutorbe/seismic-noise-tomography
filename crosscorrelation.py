@@ -1,21 +1,82 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
+#!/usr/bin/python -u
 """
-This script reads seismic records from a set of station, and
+[Advice: run this script using python with unbuffered output:
+`python -u crosscorrelation.py`]
+
+This script reads seismic waveform data from a set of stations, and
 calculates the cross-correlations between all pairs of stations
 (or optionally displays their amplitude spectra).
 
-The procedure consists in stacking daily cross-correlations
-between pairs of stations after:
-(1) removing the instrument response, the mean and the trend,
-(2) band-passing the data,
-(3) normalizing the signal with its amplitude in the earthquake
-    period band (or one-bit normalizing the signal) and
-(4) whitening the amplitude spectrum
+The implemented algorithm follows the lines of Bensen et al.,
+"Processing seismic ambient noise data to obtain reliable broad-band
+surface wave dispersion measurements", Geophys. J. Int. (2007).
+
+The procedure consists in stacking daily cross-correlations between
+pairs of stations, from *FIRSTDAY* to *LASTDAY* and, in each given day,
+rejecting stations whose data fill is < *MINFILL*. Define a subset of
+stations to cross-correlate in *CROSSCORR_STATIONS_SUBSET* (or let it
+empty to cross-correlate all stations). Define a list of locations to
+skip in *CROSSCORR_SKIPLOCS*, if any. The cross-correlations are
+calculated between -/+ *CROSSCORR_TMAX* seconds.
+
+Several pre-processing steps are applied to the daily seismic waveform
+data, before the daily cross-correlation is calculated and stacked:
+
+(1) removal of the instrument response, the mean and the trend;
+
+(2) band-pass filter between *PERIODMIN* and *PERIODMAX* sec
+
+(3) down-sampling to sampling step = *PERIOD_RESAMPLE* sec
+
+(4) time-normalization:
+
+    - if *ONEBIT_NORM* = False, normalization of the signal by its
+      (smoothed) absolute amplitude in the earthquake period band,
+      defined as *PERIODMIN_EARTHQUAKE* - *PERIODMIN_EARTHQUAKE* sec.
+      The smoothing window is *PERIODMAX_EARTHQUAKE* / 2;
+
+    - if *ONEBIT_NORM* = False, one-bit normalization, wherein
+      only the sign of the signal is kept (+1 or -1);
+
+(5) spectral whitening of the Fourier amplitude spectrum: the Fourier
+    amplitude spectrum of the signal is divided by a smoothed version
+    of itself. The smoonthing window is *WINDOW_FREQ*.
+
+Note that all the parameters mentioned above are defined in the
+configuration file.
+
+When all the cross-correlations are calculated, the script exports
+several files in dir *CROSSCORR_DIR*, whose name (without extension)
+is:
+
+xcorr[_<stations of subset>]_<first year>-<last year>[_1bitnorm] ...
+      _[datalesspaz][+][xmlresponse][_<suffix>]
+
+where <suffix> is provided by the user. For example:
+"xcorr_1996-2012_xmlresponse"
+
+The files, depending on their extension, contain the following data:
+
+- .pickle       = set of all cross-correlations (instance of
+                  pscrosscorr.CrossCorrelationCollection) exported in binary
+                  format with module pickle;
+
+- .txt          = all cross-correlations exported in ascii format
+                  (one column per pair);
+
+- .stats.txt    = general information on cross-correlations in ascii
+                  format: stations coordinates, number of days, inter-
+                  station distance etc.
+
+- .stations.txt = general information on the stations: coordinates,
+                  nb of cross-correlations in which it appears, total
+                  nb of days it has been cross-correlated etc.
+
+- .png          = figure showing all the cross-correlations (normalized to
+                  unity), stacked as a function of inter-station distance.
 """
 
-from pysismo import pscrosscorr, pserrors, psspectrum, psstation, psutils, psfortran
+from pysismo import pscrosscorr, pserrors, psspectrum, psstation, psutils
 import obspy.core
 import obspy.core.trace
 from obspy.signal import cornFreq2Paz
@@ -140,6 +201,7 @@ nday = int(nday / (3600.0 * 24.0)) + 1
 day1 = FIRSTDAY if not CALC_SPECTRA else SPECTRA_FIRSTDAY
 daylist = [day1 + i * ONEDAY for i in range(nday)]
 for day in daylist:
+    assert isinstance(day, obspy.core.UTCDateTime)  # to avoid warnings in PyCharm
     print "\nProcessing data of day ", day.date
 
     # Getting and filtering all traces of the day
@@ -156,7 +218,6 @@ for day in daylist:
                           if sta.name in CROSSCORR_STATIONS_SUBSET]
 
     for istation, station in enumerate(month_stations):
-        assert isinstance(station, psstation.Station)
         if CALC_SPECTRA and station.name not in SPECTRA_STATIONS:
             continue
 
@@ -186,12 +247,14 @@ for day in daylist:
 
         # Merging traces, FILLING GAPS WITH LINEAR INTERP
         st.merge(fill_value='interpolate')
+        # only one trace should remain
+        trace = st[0]
+        # to enable auto-completion in PyCharm
+        assert isinstance(trace, obspy.core.trace.Trace)
 
         # =================================
         # Raw trace and instrument response
         # =================================
-        trace = st[0]
-        assert isinstance(trace, obspy.core.trace.Trace)
 
         # looking for instrument response...
         paz = None
@@ -304,20 +367,20 @@ for day in daylist:
         psutils.resample(trcopy, PERIOD_RESAMPLE)
 
         # Time-normalization weights from smoothed abs(data)
-        window = round(WINDOW_TIME * trcopy.stats.sampling_rate / 2)
-        if not np.ma.isMA(trcopy.data):
-            tnorm_w = psfortran.utils.moving_avg(
-                np.abs(trcopy.data), window, len(trcopy.data))
-        else:
-            print '[Warning: masked array]',
-            tnorm_w = psfortran.utils.moving_avg_mask(
-                np.abs(trcopy.data).data, -trcopy.data.mask,
-                window, len(trcopy.data))
-            tnorm_w = np.ma.masked_array(data=tnorm_w, mask=trcopy.data.mask)
+        # Note that trace's data can be a masked array
+        halfwindow = int(round(WINDOW_TIME * trcopy.stats.sampling_rate / 2))
+        mask = ~trcopy.data.mask if np.ma.isMA(trcopy.data) else None
+        tnorm_w = psutils.moving_avg(np.abs(trcopy.data),
+                                     halfwindow=halfwindow,
+                                     mask=mask)
+        if np.ma.isMA(trcopy.data):
+            # turning time-normalization weights into a masked array
+            print "[Warning: trace's data is a masked array]",
+            tnorm_w = np.ma.masked_array(tnorm_w, trcopy.data.mask)
 
-        if np.any(tnorm_w == 0.0):
+        if np.any((tnorm_w == 0.0) | np.isnan(tnorm_w)):
             # illegal normalizing value -> skipping trace
-            print '[zero norm weight: skipped]',
+            print '[zero or NaN normalization weight: skipped]',
             continue
 
         # time-normalization
@@ -334,8 +397,8 @@ for day in daylist:
         fft = rfft(trace.data)  # real FFT
         deltaf = trace.stats.sampling_rate / trace.stats.npts  # frequency step
         # smoothing amplitude spectrum
-        window = WINDOW_FREQ / deltaf
-        weight = psfortran.utils.moving_avg(abs(fft), window)
+        halfwindow = int(WINDOW_FREQ / deltaf)
+        weight = psutils.moving_avg(abs(fft), halfwindow=halfwindow)
         # normalizing spectrum and back to time domain            
         trace.data = irfft(fft / weight, n=len(trace.data))
         # re bandpass to avoid low/high freq noise
@@ -365,14 +428,17 @@ for day in daylist:
         xc.add(tracedict=tracedict, stations=stations,
                xcorr_tmax=CROSSCORR_TMAX, verbose=True)
 
-# plotting & writing cross-correlation
+# exporting cross-correlations
 if not CALC_SPECTRA:
-    s = 'Exporting cross-correlations to files {prefix}.[txt|pickle]'
-    print s.format(prefix=OUTFILESPATH)
-    xc.export(outprefix=OUTFILESPATH, stations=stations)
-    s = 'Plotting cross-correlations and saving to file {prefix}.png'
-    print s.format(prefix=OUTFILESPATH)
-    xc.plot(xlim=(-1500, 1500), outfile=OUTFILESPATH + '.png')
+    # exporting to binary and ascii files
+    xc.export(outprefix=OUTFILESPATH, stations=stations, verbose=True)
+
+    # exporting to png file
+    print "Exporting cross-correlations to file: {}.png".format(OUTFILESPATH)
+    # optimizing time-scale: max time = max distance / vmin (vmin = 2.5 km/s)
+    maxdist = max([xc[s1][s2].dist() for s1, s2 in xc.pairs()])
+    maxt = min(CROSSCORR_TMAX, maxdist / 2.5)
+    xc.plot(xlim=(-maxt, maxt), outfile=OUTFILESPATH + '.png', showplot=False)
 
 # plotting spectra
 if CALC_SPECTRA:

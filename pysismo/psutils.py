@@ -5,6 +5,7 @@ General utilities
 
 import obspy.signal.filter
 import numpy as np
+from numpy.lib.stride_tricks import as_strided
 from numpy.fft import rfft, irfft, rfftfreq
 import os
 import shutil
@@ -155,6 +156,58 @@ def resample(trace, dt_resample):
         trace.stats.delta = dt_resample
         trace.stats.sampling_rate = 1.0 / dt_resample
         #trace.stats.endtime = trace.stats.endtime + max(tinterp)-max(tp)
+
+
+def moving_avg(a, halfwindow, mask=None):
+    """
+    Performs a fast n-point moving average of (the last
+    dimension of) array *a*, by using stride tricks to roll
+    a window on *a*.
+
+    Note that *halfwindow* gives the nb of points on each side,
+    so that n = 2*halfwindow + 1.
+
+    If *mask* is provided, values of *a* where mask = False are
+    skipped.
+
+    Returns an array of same size as *a* (which means that near
+    the edges, the averaging window is actually < *npt*).
+    """
+    # padding array with zeros on the left and on the right:
+    # e.g., if halfwindow = 2:
+    # a_padded    = [0 0 a0 a1 ... aN 0 0]
+    # mask_padded = [F F ?  ?      ?  F F]
+
+    if mask is None:
+        mask = np.ones_like(a, dtype='bool')
+
+    zeros = np.zeros(a.shape[:-1] + (halfwindow,))
+    falses = zeros.astype('bool')
+
+    a_padded = np.concatenate((zeros, np.where(mask, a, 0), zeros), axis=-1)
+    mask_padded = np.concatenate((falses, mask, falses), axis=-1)
+
+    # rolling window on padded array using stride trick
+    #
+    # E.g., if halfwindow=2:
+    # rolling_a[:, 0] = [0   0 a0 a1 ...    aN]
+    # rolling_a[:, 1] = [0  a0 a1 a2 ... aN 0 ]
+    # ...
+    # rolling_a[:, 4] = [a2 a3 ...    aN  0  0]
+    #
+    # n       = [ 3  4  5 ...  5  4  3]
+
+    npt = 2 * halfwindow + 1  # total size of the averaging window
+    rolling_a = as_strided(a_padded,
+                           shape=a.shape + (npt,),
+                           strides=a_padded.strides + (a.strides[-1],))
+    rolling_mask = as_strided(mask_padded,
+                              shape=mask.shape + (npt,),
+                              strides=mask_padded.strides + (mask.strides[-1],))
+
+    # moving average
+    n = rolling_mask.sum(axis=-1)
+    return np.where(n > 0, rolling_a.sum(axis=-1).astype('float') / n, np.nan)
 
 
 def local_maxima_indices(x, include_edges=True):
@@ -361,7 +414,7 @@ def norm(u):
 
 def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
     """
-    Plot bas map: coasts and tectonic provinces
+    Plots base map: coasts and tectonic provinces/labels
     """
     fig = None
     if not ax:

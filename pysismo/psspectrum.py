@@ -3,7 +3,7 @@ Module related to Fourier spectrum of trace
 """
 
 
-import psfortran
+import psutils
 import numpy as np
 from numpy.fft import rfft
 import matplotlib.pyplot as plt
@@ -187,7 +187,7 @@ class SpectrumList(list):
             # smoothing amplitude spectrum (except after spectral whitening)
             if not 'white' in filters.lower():
                 window = smooth_window_freq / (freq[1] - freq[0])
-                ampl = psfortran.utils.moving_avg(ampl, window)
+                ampl = psutils.moving_avg(ampl, window)
 
             # position of current station/filters in plot
             irow = ipair / ncol + 1

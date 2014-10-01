@@ -1,4 +1,8 @@
+#!/usr/bin/python -u
 """
+[Advice: run this script using python with unbuffered output:
+`python -u dispersion_curves.py`]
+
 This script implements the two-step frequency-time analysis
 (FTAN) on a set of cross-correlations, as described by Levshin &
 Ritzwoller, "Automated detection, extraction, and measurement

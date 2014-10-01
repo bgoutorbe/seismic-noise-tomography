@@ -1,4 +1,8 @@
+#!/usr/bin/python -u
 """
+[Advice: run this script using python with unbuffered output:
+`python -u tomo_inversion_2pass.py`]
+
 This script performs a two-pass tomographic inversion of a set of
 observed travel-times (equivalent to observed velocities) between
 pairs of stations, at various periods.

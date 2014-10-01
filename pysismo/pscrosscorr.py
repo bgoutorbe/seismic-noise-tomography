@@ -4,7 +4,7 @@
 Module managing cross-correlation operations
 """
 
-import pserrors, psutils, pstomo, psfortran
+import pserrors, psutils, pstomo
 import obspy.signal
 import obspy.xseed
 import obspy.signal.cross_correlation
@@ -35,7 +35,7 @@ from matplotlib import gridspec
 # parsing configuration file to import some parameters
 # ====================================================
 from psconfig import (
-    CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS,
+    CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS, CROSSCORR_TMAX, PERIOD_RESAMPLE,
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA,
     BBOX_LARGE, BBOX_SMALL)
@@ -141,7 +141,8 @@ class CrossCorrelation:
     - a time array and a (cross-correlation) data array
     """
 
-    def __init__(self, station1, station2, xcorr_dt=1, xcorr_tmax=2000):
+    def __init__(self, station1, station2, xcorr_dt=PERIOD_RESAMPLE,
+                 xcorr_tmax=CROSSCORR_TMAX):
         """
         @type station1: L{pysismo.psstation.Station}
         @type station2: L{pysismo.psstation.Station}
@@ -320,7 +321,7 @@ class CrossCorrelation:
 
             # smoothing amplitude spectrum
             window = int(window_freq / deltaf)
-            weight = psfortran.utils.moving_avg(abs(ffta), window)
+            weight = psutils.moving_avg(abs(ffta), window)
             a[:] = irfft(ffta / weight, n=npts)
 
             # bandpass to avoid low/high freq noise
@@ -1351,9 +1352,9 @@ class CrossCorrelationCollection(AttribDict):
         if verbose:
             print
 
-    def plot(self, plot_type='distance', norm=True, whiten=False, sym=False,
-             minSNR=None, minday=1, withnets=None, onlywithnets=None,
-             outfile=None, xlim=None, figsize=(21.0, 12.0), dpi=300):
+    def plot(self, plot_type='distance', xlim=None, norm=True, whiten=False,
+             sym=False, minSNR=None, minday=1, withnets=None, onlywithnets=None,
+             figsize=(21.0, 12.0), outfile=None, dpi=300, showplot=True):
         """
         method to plot a collection of cross-correlations
         """
@@ -1495,8 +1496,11 @@ class CrossCorrelationCollection(AttribDict):
             fig.set_size_inches(figsize)
             fig.savefig(outfile, dpi=dpi)
 
-        # showing plot
-        plt.show()
+        if showplot:
+            # showing plot
+            plt.show()
+
+        plt.close()
 
     def plot_spectral_SNR(self, whiten=False, minSNR=None, minspectSNR=None,
                           minday=1, mindist=None, withnets=None, onlywithnets=None,
@@ -1637,17 +1641,17 @@ class CrossCorrelationCollection(AttribDict):
         plt.ylim(bbox[2:])
         plt.show()
 
-    def export(self, outprefix, stations=None):
+    def export(self, outprefix, stations=None, verbose=False):
         """
         Exports cross-correlations to picke file and txt file
 
         @type outprefix: str or unicode
         @type stations: list of L{Station}
         """
-        self._to_picklefile(outprefix)
-        self._write_crosscorrs(outprefix)
-        self._write_pairsstats(outprefix)
-        self._write_stations(outprefix, stations=stations)
+        self._to_picklefile(outprefix, verbose=verbose)
+        self._to_ascii(outprefix, verbose=verbose)
+        self._pairsinfo_to_ascii(outprefix, verbose=verbose)
+        self._stationsinfo_to_ascii(outprefix, stations=stations, verbose=verbose)
 
     def FTANs(self, prefix=None, suffix='', whiten=False,
               normalize_ampl=True, logscale=True, mindist=None,
@@ -1801,22 +1805,29 @@ class CrossCorrelationCollection(AttribDict):
 
         return stations
 
-    def _to_picklefile(self, outprefix):
+    def _to_picklefile(self, outprefix, verbose=False):
         """
         Dumps cross-correlations to (binary) pickle file
 
         @type outprefix: str or unicode
         """
+        if verbose:
+            s = "Exporting cross-correlations in binary format to file: {}.pickle"
+            print s.format(outprefix)
+
         f = psutils.openandbackup(outprefix + '.pickle', mode='wb')
         pickle.dump(self, f, protocol=2)
         f.close()
 
-    def _write_crosscorrs(self, outprefix):
+    def _to_ascii(self, outprefix, verbose=False):
         """
         Exports cross-correlations to txt file
 
         @type outprefix: str or unicode
         """
+        if verbose:
+            s = "Exporting cross-correlations in ascci format to file: {}.txt"
+            print s.format(outprefix)
 
         # writing data file: time array (1st column)
         # and cross-corr array (one column per pair)
@@ -1834,13 +1845,17 @@ class CrossCorrelationCollection(AttribDict):
             f.write('\t'.join(line) + '\n')
         f.close()
 
-    def _write_pairsstats(self, outprefix):
+    def _pairsinfo_to_ascii(self, outprefix, verbose=False):
         """
-        Exports pairs statistics to txt file
+        Exports pairs information to txt file
 
         @type outprefix: str or unicode
         """
-        # writing stats file: coord, locations, ids etc. for each pair
+        if verbose:
+            s = "Exporting pairs information to file: {}.stats.txt"
+            print s.format(outprefix)
+
+        # writing file: coord, locations, ids etc. for each pair
         pairs = self.pairs(sort=True)
         f = psutils.openandbackup(outprefix + '.stats.txt', mode='w')
         # header
@@ -1871,7 +1886,7 @@ class CrossCorrelationCollection(AttribDict):
 
         f.close()
 
-    def _write_stations(self, outprefix, stations=None):
+    def _stationsinfo_to_ascii(self, outprefix, stations=None, verbose=False):
         """
         Exports information on cross-correlated stations
         to txt file
@@ -1879,6 +1894,9 @@ class CrossCorrelationCollection(AttribDict):
         @type outprefix: str or unicode
         @type stations: list of {Station}
         """
+        if verbose:
+            s = "Exporting stations information to file: {}.stations.txt"
+            print s.format(outprefix)
 
         if not stations:
             # extracting the list of stations from cross-correlations

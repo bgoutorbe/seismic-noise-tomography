@@ -10,6 +10,32 @@ CROSSCORR_DIR = ./output/cross-correlation  ; dir of cross-correlation results
 FTAN_DIR = ./output/FTAN                    ; dir of FTAN results (including dispersion curves)
 TOMO_DIR = ./output/tomography              ; dir of tomographic inversion results
 
+
+#=====
+[maps]
+#=====
+
+# paths to shapefiles (coasts, tectonic provinces and labels)
+
+COAST_SHP = ./shapefiles/SouthAmericaCoasts.shp
+TECTO_SHP = ./shapefiles/SouthAmericaTectonicElements.shp
+TECTO_LABELS = ./shapefiles/SouthAmericaTectonicElementsLabels.shp
+
+# colors of tectonic provinces (JSON dict)
+
+TECTO_COLORS = {
+    "Archean": [0.98, 0.88, 1, 1],
+    "Phanerozoic": [1, 0.988, 0.831, 1],
+    "Neoproterozoic": "0.9"
+    }
+
+# bounding box of (large) global maps and (small) inset maps
+# (min lon, max lon, min lat, max lat in JSON lists)
+
+BBOX_LARGE = [-70, -30, -32, 8]
+BBOX_SMALL = [-65, -35, -29, 1]
+
+
 #==================
 [cross-correlation]
 #==================
@@ -118,28 +144,3 @@ BETA = 100
 # With a value of 0.30, penalization becomes strong when path density < ~10
 
 LAMBDA = 0.3
-
-
-#=====
-[maps]
-#=====
-
-# paths to shapefiles (coasts, tectonic provinces and labels)
-
-COAST_SHP = ./shapefiles/SouthAmericaCoasts.shp
-TECTO_SHP = ./shapefiles/SouthAmericaTectonicElements.shp
-TECTO_LABELS = ./shapefiles/SouthAmericaTectonicElementsLabels.shp
-
-# colors of tectonic provinces (JSON dict)
-
-TECTO_COLORS = {
-    "Archean": [0.98, 0.88, 1, 1],
-    "Phanerozoic": [1, 0.988, 0.831, 1],
-    "Neoproterozoic": "0.9"
-    }
-
-# bounding box of (large) global maps and (small) inset maps
-# (min lon, max lon, min lat, max lat in JSON lists)
-
-BBOX_LARGE = [-70, -30, -32, 8]
-BBOX_SMALL = [-65, -35, -29, 1]
