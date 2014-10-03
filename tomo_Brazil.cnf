@@ -41,11 +41,15 @@ TECTO_LABELS = ./shapefiles/SouthAmericaTectonicElementsLabels.shp
 # JSON dict giving the color of the tectonic provinces according to their
 # category (first field of the attribute table of `TECTO_SHP`, see above).
 # A category not appearing in this dict will be filled with white.
+# A color can be any object understood by matplotlib: a string (e.g., "green"),
+# a grey shade (e.g., "0.5"), an html hex string (e.g., "#eeefff"),
+# a R/G/B tuple (e.g., [0.5, 0.5, 0.5]) or a R/B/G/alpha tuple (e.g.,
+# [0.5, 0.5, 0.5, 0.5]).
 
 TECTO_COLORS = {
-    "Archean": [0.98, 0.88, 1, 1],
-    "Phanerozoic": [1, 0.988, 0.831, 1],
-    "Neoproterozoic": "0.9"
+    "Archean": [1, 0.757, 0.757],
+    "Phanerozoic": [1, 1, 0.878],
+    "Neoproterozoic": "0.863"
     }
 
 # bounding box of (large) global maps and (small) inset maps
