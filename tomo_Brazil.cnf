@@ -1,3 +1,59 @@
+###############################################################################
+#
+# This is an example of configuration file, wherein global paths and parameters
+# related to the seismic noise tomography procedure are defined. At least one
+# configuration file should reside in the folder in which you intend to run
+# your scripts. The configuration file(s) can have any name, as long as the
+# extension is 'cnf': e.g., 'tomo.cnf', 'myconfig.cnf', 'test.cnf'...
+#
+# The parameters are divided in several sections:
+# - [paths]             : default paths to input/output folders
+# - [maps]              : parameters to plot maps
+# - [cross-correlation] : parameters to calculate cross-correlations
+# - [FTAN]              : parameters of the frequency-time analysis
+# - [tomography]        : parameters of the tomographic inversion
+#
+# Before using the scripts and package pysismo, you should at least make sure
+# that the paths in section [paths] and shapefiles in section [maps] are
+# consistent with your own files and folders organization. The other parameters
+# can be fine-tuned later as you analyze your data.
+#
+# Module pysismo.psconfig takes care of reading the configuration file and
+# defining the global parameters. If only one configuration file (*.cnf) is
+# found in the current folder, then psconfig reads it automatically. If 
+# several *.cnf files are found, then you'll be prompted to select one of
+# them.
+#
+# Other modules then import from psconfig the parameters they need, e.g.:
+# 
+#   from psconfig import CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS, ...
+#
+# Note that most of (but not all) the global parameters are actually default 
+# values that can be overridden in the functions where they are used. For
+# example, ``PERIOD_BANDS`` is the default value of the input argument ``bands`` 
+# of the function pscrosscorr.CrossCorrelation.plot_by_period_band(), but you
+# can specify other bands by explicitly passing the argument, e.g.: 
+# 
+#   plot_by_period_band(bands=[[10, 30], [20, 50]])
+#
+# If, in one script, you want to modify a global parameter without touching
+# the configuration file, you must first import psconfig, then modify the
+# parameters as desired, and finally import other module(s), e.g.:
+#
+# >>> from pysismo import psconfig 
+# >>> psconfig.FTAN_DIR = 'mydir'
+# >>> from pysismo import pscrosscorr
+# >>> pscrosscorr.FTAN_DIR
+# 'mydir'   # ok the changes have been taken in account
+#
+# It is strongly discouraged to modify global parameters once psconfig (or a 
+# module importing it) has been imported, as the effect can be highly
+# imprevisible (immutable default values won't be affected, mutable default
+# values can be affected, parameters used as is in the code will be affected).
+#
+###############################################################################
+
+
 #======
 [paths]
 #======
@@ -18,28 +74,28 @@ TOMO_DIR = ./output/tomography              ; dir of tomographic inversion resul
 # paths to shapefiles (coasts, tectonic provinces and labels), used
 # to plot maps:
 #
-# - `COAST_SHP` should be a shapefile containing lines or polygons
+# - ``COAST_SHP`` should be a shapefile containing lines or polygons
 #   representing coasts (you can also include borders).
 #
-# - `TECTO_SHP` should be a shapefile containing polygons representing
+# - ``TECTO_SHP`` should be a shapefile containing polygons representing
 #   tectonic provinces, AND AN ATTRIBUTE TABLE whose first field
 #   contains the province's category, which will be used to affect
 #   a color to the polygon (see below).
 #
-# - `TECTO_LABELS` should be a shapefile containing points representing
+# - ``TECTO_LABELS`` should be a shapefile containing points representing
 #   the location of the labels associated with the tectonic provinces,
 #   AND AN ATTRIBUTE TABLE whose first field contains the label (characters
 #   '\' will be replaced with line breaks), and the second field contains
 #   the label's angle.
 #
-# You can set any of these files to `null`.
+# You can set any of these files to ``null``.
 
 COAST_SHP = ./shapefiles/SouthAmericaCoasts.shp
 TECTO_SHP = ./shapefiles/SouthAmericaTectonicElements.shp
 TECTO_LABELS = ./shapefiles/SouthAmericaTectonicElementsLabels.shp
 
 # JSON dict giving the color of the tectonic provinces according to their
-# category (first field of the attribute table of `TECTO_SHP`, see above).
+# category (first field of the attribute table of ``TECTO_SHP``, see above).
 # A category not appearing in this dict will be filled with white.
 # A color can be any object understood by matplotlib: a string (e.g., "green"),
 # a grey shade (e.g., "0.5"), an html hex string (e.g., "#eeefff"),

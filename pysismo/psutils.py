@@ -432,7 +432,7 @@ def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
             for i1, i2 in partlims:
                 points = shape.points[i1:i2]
                 x, y = zip(*points)
-                ax.plot(x, y, '-', lw=1, color='k')
+                ax.plot(x, y, '-', lw=0.75, color='k')
 
     # plotting tectonic provinces
     if TECTO_SHP:
@@ -447,12 +447,12 @@ def basemap(ax=None, labels=True, axeslabels=True, fill=True, bbox=None):
             if fill:
                 polygons = [Polygon(shape.points[i1:i2]) for i1, i2 in partlims]
                 tectprovince = PatchCollection(polygons, facecolor=color,
-                                               edgecolor='black', linewidths=0.5)
+                                               edgecolor='0.663', linewidths=0.5)
                 ax.add_collection(tectprovince)
             else:
                 for i1, i2 in partlims:
                     x, y = zip(*shape.points[i1:i2])
-                    ax.plot(x, y, '-', color='gray', lw=0.5)
+                    ax.plot(x, y, '-', color='0.663', lw=0.5)
 
     if labels and TECTO_LABELS:
         # plotting tectonic labels within bounding box

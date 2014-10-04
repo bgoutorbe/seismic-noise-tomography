@@ -16,6 +16,7 @@ from inspect import getargspec
 
 # todo:
 # - checkboard test
+# - Gaussian resolution cone
 
 # ====================================================
 # parsing configuration file to import some parameters
