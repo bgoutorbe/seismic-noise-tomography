@@ -138,7 +138,7 @@ print
 
 EPS = 1.0E-6
 ONEDAY = dt.timedelta(days=1)
-EDGE = 3600
+ONEHOUR = dt.timedelta(hours=1)
 
 # Simulated instrument
 PAZ_SIM = cornFreq2Paz(0.01)  # no attenuation up to period 100 s
@@ -238,10 +238,12 @@ for day in daylist:
             print '[no other station: skipped]',
             continue
 
-        # Reading station stream
+        # Reading station stream (We add one hour of data to each side
+        # in order to avoid edge effects when removing the instrument
+        # response. The final trace will be trimmed to one day later.)
         st = obspy.core.read(pathname_or_url=station.getpath(day),
-                             starttime=day - EDGE,
-                             endtime=day + ONEDAY + EDGE)
+                             starttime=day - ONEHOUR,
+                             endtime=day + ONEDAY + ONEHOUR)
 
         # Removing traces from locations to skip,
         # and traces not from 1st loc if several locs
