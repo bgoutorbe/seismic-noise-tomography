@@ -15,8 +15,10 @@
 #
 # Before using the scripts and package pysismo, you should at least make sure
 # that the paths in section [paths] and shapefiles in section [maps] are
-# consistent with your own files and folders organization. The other parameters
-# can be fine-tuned later as you analyze your data.
+# consistent with your own files and folders organization. And, of course, you
+# should make sure to set the correct interval of dates to calculate the cross-
+# correlations, in section [cross-correlation]. The other parameters can be
+# fine-tuned later as you analyze your data.
 #
 # Module pysismo.psconfig takes care of reading the configuration file and
 # defining the global parameters. If only one configuration file (*.cnf) is
