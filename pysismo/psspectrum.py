@@ -186,8 +186,8 @@ class SpectrumList(list):
 
             # smoothing amplitude spectrum (except after spectral whitening)
             if not 'white' in filters.lower():
-                window = smooth_window_freq / (freq[1] - freq[0])
-                ampl = psutils.moving_avg(ampl, window)
+                halfwindow = int(round(smooth_window_freq / (freq[1] - freq[0]) / 2.0))
+                ampl = psutils.moving_avg(ampl, halfwindow)
 
             # position of current station/filters in plot
             irow = ipair / ncol + 1

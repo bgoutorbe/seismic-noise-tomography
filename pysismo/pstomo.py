@@ -465,7 +465,8 @@ class VelocityMap:
      element-by-element product, but the real matrix product.
     """
     def __init__(self, dispersion_curves, period, skippairs=(),
-                 showplot=False, verbose=True, **kwargs):
+                 resolution_fit='cone', showplot=False, verbose=True,
+                 **kwargs):
         """
         Initializes the velocity map at period = *period*, from
         the observed velocities in *dispersion_curves*:
@@ -480,6 +481,13 @@ class VelocityMap:
         This option is useful to perform a 2-pass tomographic inversion,
         wherein pairs with a too large difference observed/predicted travel-
         time are excluded from the second pass.
+
+        Select the type of function you want to fit to each resoluation map
+        with *resolution_fit*:
+        - 'cone' to fit a cone, and report the cone's radius as characteristic
+          resolution at each grid node in self.Rradius
+        - 'gaussian' to fit a gaussian function, exp(-r/2.sigma^2), and report
+          2.sigma as characteristic resolution at each grid node in self.Rradius
 
         Append optional argument (**kwargs) to override default values:
         - minspectSNR       : min spectral SNR to retain velocity
@@ -791,13 +799,25 @@ class VelocityMap:
 
             # best-fitting cone at point (lon0, lat0)
 
-            def cone_height(r, z0, r0):
-                """
-                Function returning the height of cone of radius *r0*
-                and peak *z0*, at a point located *r* km away from
-                the cone's center
-                """
-                return np.where(r < r0, z0 * (1 - r / r0), 0.0)
+            # Function returning the height of cone of radius *r0*
+            # and peak *z0*, at a point located *r* km away from
+            # the cone's center
+            if resolution_fit.lower().strip() == 'cone':
+                def cone_height(r, z0, r0):
+                    """
+                    Cone
+                    """
+                    return np.where(r < r0, z0 * (1 - r / r0), 0.0)
+            elif resolution_fit.lower().strip() == 'gaussian':
+                def cone_height(r, z0, r0):
+                    """
+                    Gaussian function
+                    """
+                    sigma = r0 / 2.0
+                    return z0 * np.exp(- r**2 / (2 * sigma**2))
+            else:
+                s = "Unknown function to fit resolution: '{}'"
+                raise Exception(s.format(resolution_fit))
 
             # distances between nodes and cone's center (lon0, lat0)
             lonnodes, latnodes = self.grid.xy_nodes()

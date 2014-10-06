@@ -293,7 +293,7 @@ class CrossCorrelation:
         xcout.symmetrized = True
         return xcout
 
-    def whiten(self, inplace=False, window_freq=0.002,
+    def whiten(self, inplace=False, window_freq=0.004,
                bandpass_tmin=7.0, bandpass_tmax=150):
         """
         Spectral whitening of cross-correlation (including
@@ -319,8 +319,8 @@ class CrossCorrelation:
             ffta = rfft(a)
 
             # smoothing amplitude spectrum
-            window = int(window_freq / deltaf)
-            weight = psutils.moving_avg(abs(ffta), window)
+            halfwindow = int(round(window_freq / deltaf / 2.0))
+            weight = psutils.moving_avg(abs(ffta), halfwindow=halfwindow)
             a[:] = irfft(ffta / weight, n=npts)
 
             # bandpass to avoid low/high freq noise

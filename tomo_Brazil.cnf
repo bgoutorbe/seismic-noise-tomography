@@ -142,7 +142,7 @@ ONEBIT_NORM = False                 ; one-bit normalization?
 PERIODMIN_EARTHQUAKE = 15.0         ; earthquakes periods band
 PERIODMAX_EARTHQUAKE = 50.0
 
-WINDOW_FREQ = 0.0001                ; freq window (Hz) to smooth ampl spectrum
+WINDOW_FREQ = 0.0002                ; freq window (Hz) to smooth ampl spectrum
 
 CALC_SPECTRA = False                ; plot spectra (instead of calculating cross-corr)?
 SPECTRA_STATIONS = ["NUPB", "PACB"] ; stations (JSON list)

@@ -407,7 +407,7 @@ for day in daylist:
         fft = rfft(trace.data)  # real FFT
         deltaf = trace.stats.sampling_rate / trace.stats.npts  # frequency step
         # smoothing amplitude spectrum
-        halfwindow = int(WINDOW_FREQ / deltaf)
+        halfwindow = int(round(WINDOW_FREQ / deltaf / 2.0))
         weight = psutils.moving_avg(abs(fft), halfwindow=halfwindow)
         # normalizing spectrum and back to time domain            
         trace.data = irfft(fft / weight, n=len(trace.data))
