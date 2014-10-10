@@ -19,3 +19,6 @@ to install the following packages:
 - [pyshp](https://github.com/GeospatialPython/pyshp)
 - [pyproj](https://code.google.com/p/pyproj/) >= 1.8.9
 - [pyPdf](http://pybrary.net/pyPdf/)
+
+It is recommended to install these packages with `pip install ...` or with your
+favourite package manager, e.g., `apt-get install ...`.
