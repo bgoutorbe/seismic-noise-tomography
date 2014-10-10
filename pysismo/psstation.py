@@ -5,6 +5,7 @@ Module managing seismic stations
 import pserrors
 import psutils
 import obspy
+import obspy.core
 from obspy import read_inventory
 from obspy.xseed.utils import SEEDParserException
 import os
@@ -131,6 +132,57 @@ class Station:
         @type other: L{Station}
         """
         return not self.__lt__(other)
+
+
+def get_stats(filepath, channel='BHZ'):
+    """
+    Returns stats on channel *channel* of stations
+    contained in *filepath*, as a dict:
+
+    {`station name`: {'network': xxx, 'firstday': xxx, 'lastday': xxx},
+     ...
+    }
+
+    Raises an Exception if a station name appears in several networks.
+
+    @rtype: dict from str to dict
+    """
+
+    # reading file (header only) as a stream
+    st = obspy.core.read(filepath, headonly=True)
+
+    # selecting traces whose channel is *channel*
+    traces = [t for t in st if t.stats['channel'] == channel]
+
+    # getting unique station names
+    stations = set(t.stats['station'] for t in traces)
+
+    # getting network, first day and last day of each station
+    stationstats = {}
+    for stationname in stations:
+        # traces of station
+        stationtraces = [t for t in traces if t.stats['station'] == stationname]
+
+        # network of station
+        networks = set(t.stats['network'] for t in stationtraces)
+        if len(networks) > 1:
+            # a station name cannot appear in several networks
+            s = "Station {} appears in several networks: {}"
+            raise Exception(s.format(stationname, networks))
+        network = list(networks)[0]
+
+        # first and last day of data
+        firstday = min(t.stats['starttime'].date for t in stationtraces)
+        lastday = max(t.stats['endtime'].date for t in stationtraces)
+
+        # appending stats
+        stationstats[stationname] = {
+            'network': network,
+            'firstday': firstday,
+            'lastday': lastday
+        }
+
+    return stationstats
 
 
 def get_stations(mseed_dir=MSEED_DIR, xmlinventories=(), datalessinventories=(),

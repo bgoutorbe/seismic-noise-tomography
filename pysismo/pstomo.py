@@ -73,6 +73,16 @@ class DispersionCurve:
         return 'Dispersion curve between stations {}-{}'.format(self.station1.name,
                                                                 self.station2.name)
 
+    def get_period_index(self, period):
+        """
+        Gets index of *period*, or raises an error if period
+        is not found
+        """
+        iperiod = np.abs(self.periods - period).argmin()
+        if np.abs(self.periods[iperiod] - period) > EPS:
+            raise Exception('Cannot find period in dispersion curve')
+        return iperiod
+
     def update_parameters(self, minspectSNR=None, minspectSNR_nosdev=None,
                           maxsdev=None, minnbtrimester=None, maxperiodfactor=None):
         """
@@ -196,7 +206,7 @@ class DispersionCurve:
         # Selection criteria:
         # 1) period <= distance * *maxperiodfactor*
 
-        cutoffperiod = self.maxperiodfactor * self.station1.dist(self.station2)
+        cutoffperiod = self.maxperiodfactor * self.dist()
         mask = self.periods <= cutoffperiod
 
         # 2) for velocities having a standard deviation associated:
@@ -223,9 +233,7 @@ class DispersionCurve:
         @type period: float
         @rtype: (float, float, float)
         """
-        iperiod = np.abs(self.periods - period).argmin()
-        if np.abs(self.periods[iperiod] - period) > EPS:
-            raise Exception('Cannot find period in dispersion curve')
+        iperiod = self.get_period_index(period)
 
         vels, sdevs = self.filtered_vels_sdevs()
         return vels[iperiod], sdevs[iperiod], self._SNRs[iperiod]
