@@ -869,7 +869,7 @@ class VelocityMap:
         Returns a checkboard function, f(lons, lats), whose background
         value is *vmid*, and alternating min/max values are *vmin* and
         *vmax*. The anomalies are circular (defined with a gaussian
-        function), and their center are separated by *squaresize*.
+        function), and their center are separated by *squaresize* (in km).
 
         @rtype: function
         """
