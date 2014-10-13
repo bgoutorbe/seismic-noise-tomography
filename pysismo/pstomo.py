@@ -3,6 +3,7 @@ Module related to seismic tomography
 """
 
 import psutils
+import itertools as it
 import numpy as np
 from scipy.optimize import curve_fit
 import os
@@ -863,6 +864,62 @@ class VelocityMap:
         """
         return '<Velocity map at period = {} s>'.format(self.period)
 
+    def checkboard_func(self, vmid, vmin, vmax, squaresize):
+        """
+        Returns a checkboard function, f(lons, lats), whose background
+        value is *vmid*, and alternating min/max values are *vmin* and
+        *vmax*. The anomalies are circular (defined with a gaussian
+        function), and their center are separated by *squaresize*.
+
+        @rtype: function
+        """
+        def basis_func(lons, lats, lon0, lat0):
+            """
+            Basis function defining an anomaly of unit height
+            centered at (*lon0*, *lat0*). The anomaly is
+            Gausian, with sigma-parameter such that 3 sigma
+            is the distance between the center and the border of
+            the square, that is, half the distance between 2
+            centers.
+            """
+            n = len(lons)
+            r = psutils.dist(lons1=lons, lats1=lats, lons2=n*[lon0], lats2=n*[lat0])
+            sigma = squaresize / 6.0
+            return np.exp(- r**2 / (2 * sigma**2))
+
+        # converting square size from km to degrees
+        d2rad = np.pi / 180.0
+        midlat = 0.5 * (self.grid.ymin + self.grid.get_ymax())
+        latwidth = squaresize / 6371.0 / d2rad
+        lonwidth = squaresize / (6371.0 * np.cos(midlat * d2rad)) / d2rad
+
+        # coordinates of the center of the anomalies
+        startlon = self.grid.xmin + lonwidth / 2.0
+        stoplon = self.grid.get_xmax() + lonwidth
+        centerlons = list(np.arange(startlon, stoplon, lonwidth))
+        startlat = self.grid.ymin + latwidth / 2.0
+        stoplat = self.grid.get_ymax() + latwidth
+        centerlats = list(np.arange(startlat, stoplat, latwidth))
+        centerlonlats = list(it.product(centerlons, centerlats))
+
+        # factors by which multiply the basis function associated
+        # with each center (to alternate lows and highs)
+        polarities = [(centerlons.index(lon) + centerlats.index(lat)) % 2
+                      for lon, lat in centerlonlats]
+        factors = np.where(np.array(polarities) == 1, vmax - vmid, vmin - vmid)
+
+        def func(lons, lats):
+            """
+            Checkboard function: sum of the basis functions along
+            the centers defined above, times the high/low factor,
+            plus background velocity.
+            """
+            lowhighs = [f * basis_func(lons, lats, lon0, lat0) for f, (lon0, lat0)
+                        in zip(factors, centerlonlats)]
+            return vmid + sum(lowhighs)
+
+        return func
+
     def path_density(self, window=(LONSTEP, LATSTEP)):
         """
         Returns the path density, that is, on each node of the
@@ -1133,6 +1190,46 @@ class VelocityMap:
         ax.set_ylim(bbox[2:])
         if plot_title:
             ax.set_title(u'Period = {} s, {} paths'.format(self.period, len(self.paths)))
+
+        if fig:
+            fig.show()
+
+    def plot_checkboard(self, vmid, vmin, vmax, squaresize, ax=None, xsize=10):
+        """
+        Plots checkboard anomalies
+        """
+        # bounding box
+        bbox = self.grid.bbox()
+
+        # creating figure if not given as input
+        fig = None
+        if not ax:
+            aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
+            # xzise has not effect if axes are given as input
+            fig = plt.figure(figsize=(xsize, aspectratio * xsize))
+            ax = fig.add_subplot(111)
+
+        # plotting coasts and tectonic provinces
+        psutils.basemap(ax=ax, labels=False, fill=False, bbox=bbox)
+
+        # plotting stations
+        self._plot_stations(ax, stationlabel=False)
+
+        # plotting checkboard along grid nodes
+        checkboard_func = self.checkboard_func(vmid, vmin, vmax, squaresize)
+        lons, lats = self.grid.xy_nodes()
+        a = self.grid.to_2D_array(checkboard_func(lons, lats))
+        extent = (self.grid.xmin, self.grid.get_xmax(),
+                  self.grid.ymin, self.grid.get_ymax())
+        m = ax.imshow(a.transpose(), origin='bottom', extent=extent,
+                      interpolation='bicubic', vmin=vmin, vmax=vmax,
+                      cmap=plt.get_cmap('seismic_r'))
+        c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
+        c.set_label('km/s')
+
+        # formatting axes
+        ax.set_xlim(bbox[:2])
+        ax.set_ylim(bbox[2:])
 
         if fig:
             fig.show()
