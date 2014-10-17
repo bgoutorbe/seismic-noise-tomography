@@ -12,12 +12,12 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import gridspec
+from matplotlib.colors import ColorConverter
 import shutil
 from inspect import getargspec
 
 # todo:
 # - checkboard test
-# - Gaussian resolution cone
 
 # ====================================================
 # parsing configuration file to import some parameters
@@ -33,6 +33,40 @@ from psconfig import (
 # ========================
 
 EPS = 1.0E-6
+
+# custom color map for seismic anomalies
+# --------------------------------------
+c = ColorConverter()
+colors = ['black', 'red', 'gold', 'white',
+          'white', 'aquamarine', 'blue', 'mediumvioletred']
+values = [-1.0, -0.4, -0.1, -0.025,
+          0.025, 0.1, 0.4, 1.0]
+rgblist = [c.to_rgb(s) for s in colors]
+reds, greens, blues = zip(*rgblist)
+cdict = {}
+for x, r, g, b in zip(values, reds, greens, blues):
+    v = (x - min(values)) / (max(values) - min(values))
+    cdict.setdefault('red', []).append((v, r, r))
+    cdict.setdefault('green', []).append((v, g, g))
+    cdict.setdefault('blue', []).append((v, b, b))
+
+CMAP_SEISMIC = LinearSegmentedColormap('customseismic', cdict)
+
+# custom color map for spatial resolution
+# ---------------------------------------
+colors = ['black', 'red', 'yellow', 'green', 'white']
+values = [0, 0.25, 0.5, 0.75,  1.0]
+rgblist = [c.to_rgb(s) for s in colors]
+reds, greens, blues = zip(*rgblist)
+cdict = {}
+for x, r, g, b in zip(values, reds, greens, blues):
+    v = (x - min(values)) / (max(values) - min(values))
+    cdict.setdefault('red', []).append((v, r, r))
+    cdict.setdefault('green', []).append((v, g, g))
+    cdict.setdefault('blue', []).append((v, b, b))
+
+CMAP_RESOLUTION = LinearSegmentedColormap('customresolution', cdict)
+CMAP_RESOLUTION.set_bad(color='0.85')
 
 
 class DispersionCurve:
@@ -329,6 +363,12 @@ class Grid:
         """
         return self.xy(np.arange(0, self.n_nodes()))
 
+    def xarray(self):
+        return np.arange(self.xmin, self.get_xmax() + self.xstep, self.xstep)
+
+    def yarray(self):
+        return np.arange(self.ymin, self.get_ymax() + self.ystep, self.ystep)
+
     def index_(self, ix, iy):
         """
         Index of node (ix, iy) in grid:
@@ -474,8 +514,8 @@ class VelocityMap:
      element-by-element product, but the real matrix product.
     """
     def __init__(self, dispersion_curves, period, skippairs=(),
-                 resolution_fit='cone', showplot=False, verbose=True,
-                 **kwargs):
+                 resolution_fit='cone', min_resolution_height=0.1,
+                 showplot=False, verbose=True, **kwargs):
         """
         Initializes the velocity map at period = *period*, from
         the observed velocities in *dispersion_curves*:
@@ -491,12 +531,16 @@ class VelocityMap:
         wherein pairs with a too large difference observed/predicted travel-
         time are excluded from the second pass.
 
-        Select the type of function you want to fit to each resoluation map
+        Select the type of function you want to fit to each resolution map
         with *resolution_fit*:
         - 'cone' to fit a cone, and report the cone's radius as characteristic
           resolution at each grid node in self.Rradius
         - 'gaussian' to fit a gaussian function, exp(-r/2.sigma^2), and report
           2.sigma as characteristic resolution at each grid node in self.Rradius
+
+        Note that all resolutions in self.Rradius having a best-fitting
+        cone height < *min_resolution_height* * max height will be
+        discarded and set to nan.
 
         Append optional argument (**kwargs) to override default values:
         - minspectSNR       : min spectral SNR to retain velocity
@@ -797,14 +841,12 @@ class VelocityMap:
 
         if verbose:
             print "Estimation spatial resolution (Rradius)"
+
         self.Rradius = np.zeros(self.grid.n_nodes())
+        heights = np.zeros(self.grid.n_nodes())
+
         for i, Ri in enumerate(np.array(self.R)):
             lon0, lat0 = self.grid.xy(i)
-
-            # setting spatial resolution = nan for nodes without path
-            if self.density[i] == 0:
-                self.Rradius[i] = np.nan
-                continue
 
             # best-fitting cone at point (lon0, lat0)
 
@@ -843,15 +885,19 @@ class VelocityMap:
                                             self.grid.ystep)
 
             # fitting the above function to observed heights along nodes,
-            # in array Ri
-            popt, _ = curve_fit(f=cone_height, xdata=rdata, ydata=Ri, p0=[1, 2*rmin],
-                                maxfev=10000)
-            _, r0 = popt
+            # in array abs(Ri)
+            popt, _ = curve_fit(f=cone_height, xdata=rdata, ydata=np.abs(Ri),
+                                p0=[1, 2*rmin], maxfev=10000)
+            z0, r0 = popt
+
             # reslution cannot be better than *rmin*
             r0 = max(rmin, r0)
 
             # appending spatial resolution to array
             self.Rradius[i] = r0
+            heights[i] = z0
+
+        self.Rradius[heights < heights.max() * min_resolution_height] = np.nan
 
         if showplot:
             # potting maps of velocity perturbation,
@@ -864,9 +910,9 @@ class VelocityMap:
         """
         return '<Velocity map at period = {} s>'.format(self.period)
 
-    def checkboard_func(self, vmid, vmin, vmax, squaresize):
+    def checkerboard_func(self, vmid, vmin, vmax, squaresize):
         """
-        Returns a checkboard function, f(lons, lats), whose background
+        Returns a checkerboard function, f(lons, lats), whose background
         value is *vmid*, and alternating min/max values are *vmin* and
         *vmax*. The anomalies are circular (defined with a gaussian
         function), and their center are separated by *squaresize* (in km).
@@ -947,21 +993,18 @@ class VelocityMap:
 
         return density
 
-    def traveltime_reldiffs(self):
+    def traveltime_residuals(self):
         """
-        Returns the relative difference between observed and predicted
-        travel-time at each pair of stations:
+        Returns the residual between observed-predicted travel times
+        at each pair of stations:
 
-          terr = (observed - predicted travel-time) / predicted traveltime,
-               = (dobs - dpred) / (dpred + dist / v0),
+          residuals = observed - predicted travel-time,
+                    = dobs - dpred,
           with dpred = G.mopt
 
         @rtype: L{matrix}
         """
-        dists = np.matrix([c.dist() for c in self.disp_curves]).T
-        dpred = self.G * self.mopt
-        terr = (self.dobs - dpred) / (dpred + dists / self.v0)
-        return terr
+        return self.dobs - self.G * self.mopt
 
     def plot(self, xsize=20, title=None, showplot=True, outfile=None, **kwargs):
         """
@@ -1032,18 +1075,13 @@ class VelocityMap:
 
     def plot_pathdensity(self, ax=None, xsize=10, plotdensity=True, plotpaths=True,
                          stationlabel=False, plot_title=True, showgrid=False,
-                         terr_threshold=None):
+                         highlight_residuals_gt=None):
         """
         Plots path density and/or interstation paths.
 
-        Paths for which the relative err between observed and predicted travel-time,
-
-          terr = (observed - predicted travel-time) / predicted traveltime,
-               = (dobs - dpred) / (dpred + dist / v0),
-          with dpred = G.mopt
-
-        is greater than *terr_threshold* (if defined) are highlighted
-        as bold lines.
+        Paths for which the residual observed/predicted travel-time
+        is greater than *highlight_residuals_gt* (if defined) are
+        highlighted as bold lines.
         """
         # bounding box
         bbox = self.grid.bbox()
@@ -1072,14 +1110,14 @@ class VelocityMap:
             c.set_label('Path density')
 
         if plotpaths:
-            # relative error between observed/predicted travel-times
-            terr = self.traveltime_reldiffs() if terr_threshold else []
+            # residuals observed/predicted travel-times
+            res = self.traveltime_residuals() if highlight_residuals_gt else []
 
             # plotting paths
             for i, path in enumerate(self.paths):
                 x, y = zip(*path)
                 linestyle = {'color': 'grey', 'lw': 0.5}
-                if terr_threshold and abs(float(terr[i])) > terr_threshold:
+                if highlight_residuals_gt and abs(float(res[i])) > highlight_residuals_gt:
                     # highlighting line as the travel-time error is > threshold
                     linestyle = {'color': 'black', 'lw': 1.5}
                 ax.plot(x, y, '-', **linestyle)
@@ -1140,7 +1178,7 @@ class VelocityMap:
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(v.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', cmap=plt.get_cmap('seismic_r'),
+                      interpolation='bicubic', cmap=CMAP_SEISMIC,
                       **kwargs)
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
         c.set_label('Velocity perturbation (%)' if perturbation else 'Velocity (km/s)')
@@ -1180,8 +1218,8 @@ class VelocityMap:
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(r.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', vmin=0, vmax=1500,
-                      cmap=plt.get_cmap('jet_r'))
+                      interpolation='bicubic',
+                      cmap=CMAP_RESOLUTION)
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
         c.set_label('Spatial resolution (km)')
 
@@ -1194,7 +1232,7 @@ class VelocityMap:
         if fig:
             fig.show()
 
-    def plot_checkboard(self, vmid, vmin, vmax, squaresize, ax=None, xsize=10):
+    def plot_checkerboard(self, vmid, vmin, vmax, squaresize, ax=None, xsize=10):
         """
         Plots checkboard anomalies
         """
@@ -1216,9 +1254,9 @@ class VelocityMap:
         self._plot_stations(ax, stationlabel=False)
 
         # plotting checkboard along grid nodes
-        checkboard_func = self.checkboard_func(vmid, vmin, vmax, squaresize)
+        checkerboard_func = self.checkerboard_func(vmid, vmin, vmax, squaresize)
         lons, lats = self.grid.xy_nodes()
-        a = self.grid.to_2D_array(checkboard_func(lons, lats))
+        a = self.grid.to_2D_array(checkerboard_func(lons, lats))
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(a.transpose(), origin='bottom', extent=extent,

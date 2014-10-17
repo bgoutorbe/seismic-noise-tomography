@@ -14,14 +14,12 @@ curve is an instance of pstomo.DispersionCurve exported in binary
 format with module pickle.
 
 In the first pass, an overdamped tomographic inversion is
-performed, and the relative differences between observed/
-predicted travel-time are estimated for each observed
-travel-time (i.e., for each pair of stations).
+performed, and the residuals between observed/predicted
+travel-time are estimated for all pairs of stations).
 
 A second tomographic inversion is then performed, after
-rejecting the pairs whose observed travel-time is too
-different from the predidcted travel-time. The difference
-threshold is given in *MAX_TRAVELTIME_RELDIFF*.
+rejecting the pairs whose absolute residual is larger than 3 times
+the standard deviation of the residuals.
 
 The inversion is an implementation of the algorithm described
 by Barmin et al., "A fast and reliable method for surface wave
@@ -63,7 +61,12 @@ The default value of all the parameters mentioned above is
 defined in the configuration file, and can be overridden
 when the inversion is performed, in pstomo.VelocityMap().
 
-The results are exported in a pdf file in dir *TOMO_DIR*
+The maps (1st pass, 2nd pass of the two-pass inversion + map
+of a one-pass inversion for comparison, at each period) are
+exported as figures  in a pdf file in dir *TOMO_DIR*.
+The final maps (2nd pass of the two-pass inversion at each
+period) are exported in binary format using module pickle
+as a dict: {period: instance of pstomo.VelocityMap}.
 """
 
 from pysismo import pstomo, psutils
@@ -75,11 +78,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 # periods
-PERIODS = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
-
-# max relative diff between observed/predicted travel-time
-# to keep pair in the second pass
-MAX_TRAVELTIME_RELDIFF = 0.15
+PERIODS = [5.0, 10.0, 16.0, 23.0]
 
 # parameters for the 1st and 2nd pass, respectively
 GRID_STEPS = (1.0, 1.0)
@@ -113,20 +112,28 @@ for pickle_file in pickle_files:
     curves = pickle.load(f)
     f.close()
 
-    # opening pdf file (setting name as "2-pass-tomography_xxx.pdf")
+    # if the name of the file containing the dispersion curves is:
+    # FTAN_<suffix>.pickle,
+    # then the name of the output files (without extension) is defined as:
+    # 2-pass-tomography_<suffix>
     try:
         os.makedirs(TOMO_DIR)
     except:
         pass
     basename = os.path.basename(pickle_file).replace('FTAN', '2-pass-tomography')
-    pdfname = os.path.join(TOMO_DIR, os.path.splitext(basename)[0]) + '.pdf'
-    print "Maps will be exported to pdf file: " + pdfname
+    outprefix = os.path.join(TOMO_DIR, os.path.splitext(basename)[0])
+    pdfname = outprefix + '.pdf'
+    picklename = outprefix + '.pickle'
+    print "Maps will be exported as figures to file: " + pdfname
+    print "Final (2-passed) maps will be pickled to file: " + picklename
+
+    # backup of pdf
     if os.path.exists(pdfname):
-        # backup
         shutil.copyfile(pdfname, pdfname + '~')
     pdf = PdfPages(pdfname)
 
     # performing tomographic inversions at given periods
+    vmaps = {}  # initializing dict of final maps
     for period in PERIODS:
         print "\nDoing period = {} s".format(period)
 
@@ -167,6 +174,19 @@ for pickle_file in pickle_files:
                                    beta=BETAS[passnb],
                                    lambda_=LAMBDAS[passnb])
 
+            if passnb == 0:
+                # pairs whose residual is > 3 times the std dev of
+                # the residuals are rejected from the next pass
+                residuals = v.traveltime_residuals()
+                maxresidual = 3 * residuals.std()
+                skippairs = [(c.station1.name, c.station2.name)
+                             for c, r in zip(v.disp_curves, residuals)
+                             if abs(float(r)) > maxresidual]
+            else:
+                # adding velocity map to the dict of final maps
+                vmaps[period] = v
+                maxresidual = None
+
             # creating a figure summing up the results of the inversion:
             # - 1st panel = map of velocities or velocity anomalies
             # - 2nd panel = map of interstation paths and path densities
@@ -186,19 +206,14 @@ for pickle_file in pickle_files:
                                  CORR_LENGTHS[passnb], ALPHAS[passnb],
                                  BETAS[passnb], LAMBDAS[passnb], len(v.paths),
                                  len(skippairs))
+
+            # we highlight paths that will be rejected
             fig = v.plot(title=title, showplot=False,
-                         terr_threshold=MAX_TRAVELTIME_RELDIFF)
+                         highlight_residuals_gt=maxresidual)
 
             # exporting plot to pdf
             pdf.savefig(fig)
             plt.close()
-
-            # pairs to reject (because observed/predicted travel-time is too large)
-            if passnb == 0:
-                terrs = v.traveltime_reldiffs()
-                skippairs = [(c.station1.name, c.station2.name)
-                             for c, terr in zip(v.disp_curves, terrs)
-                             if abs(float(terr)) > MAX_TRAVELTIME_RELDIFF]
 
         # let's compare the 2-pass tomography with a one-pass tomography
         s = ("One-pass tomography: grid step = {}, min SNR = {}, "
@@ -218,16 +233,14 @@ for pickle_file in pickle_files:
                                beta=BETAS[1],
                                lambda_=LAMBDAS[1])
 
-        # figure (highlighting paths with large diff
-        # between obs/predicted travel-time)
+        # figure
         title = ("Period = {0} s, one pass, grid {1} x {1} deg, "
                  "min SNR = {2}, corr. length = {3} km, alpha = {4}, "
                  "beta = {5}, lambda = {6} ({7} paths)")
         title = title.format(period, GRID_STEPS[1], MINPECTSNRS[1],
                              CORR_LENGTHS[1], ALPHAS[1],
                              BETAS[1], LAMBDAS[1], len(v.paths))
-        fig = v.plot(title=title, showplot=False,
-                     terr_threshold=MAX_TRAVELTIME_RELDIFF)
+        fig = v.plot(title=title, showplot=False)
 
         # exporting plot in pdf
         pdf.savefig(fig)
@@ -243,3 +256,10 @@ for pickle_file in pickle_files:
     pagesgroups = psutils.groupbykey(pagenbs, key=key)
     print "\nMerging pages of pdf..."
     psutils.combine_pdf_pages(pdfname, pagesgroups, verbose=True)
+
+    # exporting final maps (using pickle) as a dict:
+    # {period: instance of pstomo.VelocityMap}
+    print "\nExporting final velocity maps to file: " + picklename
+    f = psutils.openandbackup(picklename, 'wb')
+    pickle.dump(vmaps, f, protocol=2)
+    f.close()
