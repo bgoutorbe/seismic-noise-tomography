@@ -493,6 +493,8 @@ class VelocityMap:
     Attributes:
      - period      : period (s) of the velocity map
      - disp_curves : disp curves whose period's velocity is not nan
+     - paths       : list of geodesic paths associated with pairs of stations
+                     of dispersion curves
      - v0          : reference velocity (inverse of mean slowness, i.e.,
                      slowness implied by all observed travel-times)
      - dobs        : vector of observed data (differences observed-reference travel time)
@@ -655,7 +657,7 @@ class VelocityMap:
         # = vector of differences observed-reference travel time
         # ======================================================
         if verbose:
-            print 'Setting up reference velocity (v0) data vector (d)'
+            print 'Setting up reference velocity (v0) and data vector (dobs)'
 
         # reference velocity = inverse of mean slowness
         # mean slowness = slowness implied by observed travel-times
@@ -817,7 +819,7 @@ class VelocityMap:
 
         # vector of best-fitting parameters
         if verbose:
-            print "Estimating best-fitting parameters (m)"
+            print "Estimating best-fitting parameters (mopt)"
         self.mopt = self.Ginv * self.Cinv * self.dobs
 
         # resolution matrix
@@ -910,62 +912,6 @@ class VelocityMap:
         """
         return '<Velocity map at period = {} s>'.format(self.period)
 
-    def checkerboard_func(self, vmid, vmin, vmax, squaresize):
-        """
-        Returns a checkerboard function, f(lons, lats), whose background
-        value is *vmid*, and alternating min/max values are *vmin* and
-        *vmax*. The anomalies are circular (defined with a gaussian
-        function), and their center are separated by *squaresize* (in km).
-
-        @rtype: function
-        """
-        def basis_func(lons, lats, lon0, lat0):
-            """
-            Basis function defining an anomaly of unit height
-            centered at (*lon0*, *lat0*). The anomaly is
-            Gausian, with sigma-parameter such that 3 sigma
-            is the distance between the center and the border of
-            the square, that is, half the distance between 2
-            centers.
-            """
-            n = len(lons)
-            r = psutils.dist(lons1=lons, lats1=lats, lons2=n*[lon0], lats2=n*[lat0])
-            sigma = squaresize / 6.0
-            return np.exp(- r**2 / (2 * sigma**2))
-
-        # converting square size from km to degrees
-        d2rad = np.pi / 180.0
-        midlat = 0.5 * (self.grid.ymin + self.grid.get_ymax())
-        latwidth = squaresize / 6371.0 / d2rad
-        lonwidth = squaresize / (6371.0 * np.cos(midlat * d2rad)) / d2rad
-
-        # coordinates of the center of the anomalies
-        startlon = self.grid.xmin + lonwidth / 2.0
-        stoplon = self.grid.get_xmax() + lonwidth
-        centerlons = list(np.arange(startlon, stoplon, lonwidth))
-        startlat = self.grid.ymin + latwidth / 2.0
-        stoplat = self.grid.get_ymax() + latwidth
-        centerlats = list(np.arange(startlat, stoplat, latwidth))
-        centerlonlats = list(it.product(centerlons, centerlats))
-
-        # factors by which multiply the basis function associated
-        # with each center (to alternate lows and highs)
-        polarities = [(centerlons.index(lon) + centerlats.index(lat)) % 2
-                      for lon, lat in centerlonlats]
-        factors = np.where(np.array(polarities) == 1, vmax - vmid, vmin - vmid)
-
-        def func(lons, lats):
-            """
-            Checkboard function: sum of the basis functions along
-            the centers defined above, times the high/low factor,
-            plus background velocity.
-            """
-            lowhighs = [f * basis_func(lons, lats, lon0, lat0) for f, (lon0, lat0)
-                        in zip(factors, centerlonlats)]
-            return vmid + sum(lowhighs)
-
-        return func
-
     def path_density(self, window=(LONSTEP, LATSTEP)):
         """
         Returns the path density, that is, on each node of the
@@ -1005,6 +951,112 @@ class VelocityMap:
         @rtype: L{matrix}
         """
         return self.dobs - self.G * self.mopt
+
+    def checkerboard_func(self, vmid, vmin, vmax, squaresize, shape='cos'):
+        """
+        Returns a checkerboard function, f(lons, lats), whose background
+        value is *vmid*, and alternating min/max values are *vmin* and
+        *vmax*. The centers of the anomalies are separated by *squaresize*
+        (in km), and their shape is either 'gaussian' or 'cos'.
+
+        @rtype: function
+        """
+        # converting square size from km to degrees
+        d2rad = np.pi / 180.0
+        midlat = 0.5 * (self.grid.ymin + self.grid.get_ymax())
+        latwidth = squaresize / 6371.0 / d2rad
+        lonwidth = squaresize / (6371.0 * np.cos(midlat * d2rad)) / d2rad
+
+        # Basis function defining an anomaly of
+        # unit height centered at (*lon0*, *lat0*).
+        if shape.lower().strip() == 'gaussian':
+            def basis_func(lons, lats, lon0, lat0):
+                """
+                Gausian anomaly , with sigma-parameter such that 3 sigma
+                is the distance between the center and the border of
+                the square, that is, half the distance between 2
+                centers.
+                """
+                n = len(lons)
+                r = psutils.dist(lons1=lons, lats1=lats, lons2=n*[lon0], lats2=n*[lat0])
+                sigma = squaresize / 6.0
+                return np.exp(- r**2 / (2 * sigma**2))
+        elif shape.lower().strip() == 'cos':
+            def basis_func(lons, lats, lon0, lat0):
+                """
+                Cosinus anomaly
+                """
+                x = (lons - lon0) / lonwidth
+                y = (lats - lat0) / latwidth
+                outside_square = (np.abs(x) >= 0.5) | (np.abs(y) >= 0.5)
+                return np.where(outside_square, 0.0, np.cos(np.pi*x) * np.cos(np.pi*y))
+        else:
+            raise Exception("Unknown shape anomaly: " + shape)
+
+        # coordinates of the center of the anomalies
+        startlon = self.grid.xmin + lonwidth / 2.0
+        stoplon = self.grid.get_xmax() + lonwidth
+        centerlons = list(np.arange(startlon, stoplon, lonwidth))
+        startlat = self.grid.ymin + latwidth / 2.0
+        stoplat = self.grid.get_ymax() + latwidth
+        centerlats = list(np.arange(startlat, stoplat, latwidth))
+        centerlonlats = list(it.product(centerlons, centerlats))
+
+        # factors by which multiply the basis function associated
+        # with each center (to alternate lows and highs)
+        polarities = [(centerlons.index(lon) + centerlats.index(lat)) % 2
+                      for lon, lat in centerlonlats]
+        factors = np.where(np.array(polarities) == 1, vmax - vmid, vmin - vmid)
+
+        def func(lons, lats):
+            """
+            Checkboard function: sum of the basis functions along
+            the centers defined above, times the high/low factor,
+            plus background velocity.
+            """
+            lowhighs = [f * basis_func(lons, lats, lon0, lat0) for f, (lon0, lat0)
+                        in zip(factors, centerlonlats)]
+            return vmid + sum(lowhighs)
+
+        return func
+
+    def checkerboard_test(self, vmid, vmin, vmax, squaresize, **kwargs):
+        """
+        Generates synthetic data (travel time perturbations),
+        dsynth, from a checkerboard model of velocities, and
+        performs a tomographic inversion on them:
+
+          m = (Gt.C^-1.G + Q)^-1.Gt.C^-1.dsynth
+            = Ginv.C^-1.dsynth
+
+        Returns the vector of best-fitting parameters, m.
+
+        @rtype: L{matrix}
+        """
+
+        # checkerboard function
+        f_checkerboard = self.checkerboard_func(vmid, vmin, vmax, squaresize, **kwargs)
+
+        # setting up vector of synthetic data
+        dsynth = np.zeros_like(self.dobs)
+        for d, path, curve in zip(dsynth, self.paths, self.disp_curves):
+            # array of infinitesimal distances along path
+            lons, lats = path[:, 0], path[:, 1]
+            ds = psutils.dist(lons1=lons[:-1], lats1=lats[:-1],
+                              lons2=lons[1:], lats2=lats[1:])
+
+            # velocities along path
+            v = f_checkerboard(lons, lats)
+
+            # travel time = integral[ds / v]
+            t = np.sum(ds * 0.5 * (1.0 / v[:-1] + 1.0 / v[1:]))
+
+            # synthetic data = travel time - ref travel time
+            d[...] = t - curve.dist() / vmid
+
+        # inverting synthetic data
+        m = self.Ginv * self.Cinv * dsynth
+        return m
 
     def plot(self, xsize=20, title=None, showplot=True, outfile=None, **kwargs):
         """
@@ -1232,42 +1284,67 @@ class VelocityMap:
         if fig:
             fig.show()
 
-    def plot_checkerboard(self, vmid, vmin, vmax, squaresize, ax=None, xsize=10):
+    def plot_checkerboard(self, vmid, vmin, vmax, squaresize, axes=None, xsize=10,
+                          **kwargs):
         """
-        Plots checkboard anomalies
+        Plots checkboard model and reconstructed checkerboard
         """
+        # checkerboard test
+        m = self.checkerboard_test(vmid, vmin, vmax, squaresize, **kwargs)
+        v = self.grid.to_2D_array(vmid / (1 + m))
+        dv = 100 * (v - vmid) / vmid
+
         # bounding box
         bbox = self.grid.bbox()
 
         # creating figure if not given as input
         fig = None
-        if not ax:
+        if not axes:
             aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
             # xzise has not effect if axes are given as input
             fig = plt.figure(figsize=(xsize, aspectratio * xsize))
-            ax = fig.add_subplot(111)
+            axes = [fig.add_subplot(121), fig.add_subplot(122)]
 
-        # plotting coasts and tectonic provinces
-        psutils.basemap(ax=ax, labels=False, fill=False, bbox=bbox)
+        ims = []
 
-        # plotting stations
-        self._plot_stations(ax, stationlabel=False)
-
-        # plotting checkboard along grid nodes
-        checkerboard_func = self.checkerboard_func(vmid, vmin, vmax, squaresize)
+        # checkerboard model
+        checkerboard_func = self.checkerboard_func(vmid, vmin, vmax, squaresize, **kwargs)
         lons, lats = self.grid.xy_nodes()
         a = self.grid.to_2D_array(checkerboard_func(lons, lats))
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
-        m = ax.imshow(a.transpose(), origin='bottom', extent=extent,
-                      interpolation='bicubic', vmin=vmin, vmax=vmax,
-                      cmap=plt.get_cmap('seismic_r'))
-        c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
-        c.set_label('km/s')
+        im = axes[0].imshow(a.transpose(),
+                            origin='bottom', extent=extent,
+                            interpolation='bicubic',
+                            vmin=vmin, vmax=vmax,
+                            cmap=CMAP_SEISMIC)
+        ims.append(im)
 
-        # formatting axes
-        ax.set_xlim(bbox[:2])
-        ax.set_ylim(bbox[2:])
+        # reconstructed checkerboard
+        extent = (self.grid.xmin, self.grid.get_xmax(),
+                  self.grid.ymin, self.grid.get_ymax())
+        im = axes[1].imshow(dv.transpose(),
+                            origin='bottom', extent=extent,
+                            interpolation='bicubic',
+                            vmin=-np.abs(dv).max(),
+                            vmax=np.abs(dv).max(),
+                            cmap=CMAP_SEISMIC)
+        ims.append(im)
+
+        for ax, im in zip(axes, ims):
+            # coasts and tectonic provinces
+            psutils.basemap(ax=ax, labels=False, fill=False, bbox=bbox)
+
+            # stations
+            self._plot_stations(ax, stationlabel=False)
+
+            # color bar
+            c = plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.1)
+            c.set_label('km/s' if ax is axes[0] else '% perturbation')
+
+            # limits
+            ax.set_xlim(bbox[:2])
+            ax.set_ylim(bbox[2:])
 
         if fig:
             fig.show()

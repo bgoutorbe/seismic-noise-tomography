@@ -87,6 +87,7 @@ CORR_LENGTHS = (150, 150)
 ALPHAS = (3000, 600)
 BETAS = (200, 200)
 LAMBDAS = (0.3, 0.3)
+SUFFIX = ''
 
 # parsing configuration file to import dirs
 from pysismo.psconfig import FTAN_DIR, TOMO_DIR
@@ -122,6 +123,8 @@ for pickle_file in pickle_files:
         pass
     basename = os.path.basename(pickle_file).replace('FTAN', '2-pass-tomography')
     outprefix = os.path.join(TOMO_DIR, os.path.splitext(basename)[0])
+    if SUFFIX:
+        outprefix += '_{}'.format(SUFFIX)
     pdfname = outprefix + '.pdf'
     picklename = outprefix + '.pickle'
     print "Maps will be exported as figures to file: " + pdfname

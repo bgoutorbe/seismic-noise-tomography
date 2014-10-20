@@ -332,7 +332,44 @@ class CrossCorrelation:
         xcout.whitened = True
         return xcout
 
-    def SNR(self, periodbands=None, centerperiods_and_alpha=None,
+    def signal_noise_windows(self, vmin, vmax, signal2noise_trail, noise_window_size):
+        """
+        Returns the signal window and the noise window.
+        The signal window is defined by *vmin* and *vmax*:
+
+          dist/*vmax* < t < dist/*vmin*
+
+        The noise window starts *signal2noise_trail* after the
+        signal window and has a size of *noise_window_size*:
+
+          t > dist/*vmin* + *signal2noise_trail*
+          t < dist/*vmin* + *signal2noise_trail* + *noise_window_size*
+
+        If the noise window hits the time limit of the cross-correlation,
+        we try to extend it to the left until it hits the signal
+        window.
+
+        @rtype: (float, float), (float, float)
+        """
+        # signal window
+        tmin_signal = self.dist() / vmax
+        tmax_signal = self.dist() / vmin
+
+        # noise window
+        tmin_noise = tmax_signal + signal2noise_trail
+        tmax_noise = tmin_noise + noise_window_size
+        if tmax_noise > self.timearray.max():
+            # the noise window hits the rightmost limit:
+            # let's shift it to the left without crossing
+            # the signal window
+            delta = min(tmax_noise - self.timearray.max(), tmin_noise - tmax_signal)
+            tmin_noise -= delta
+            tmax_noise -= delta
+
+        return (tmin_signal, tmax_signal), (tmin_noise, tmax_noise)
+
+    def SNR(self, periodbands=None,
+            centerperiods_and_alpha=None,
             whiten=False, months=None,
             vmin=SIGNAL_WINDOW_VMIN,
             vmax=SIGNAL_WINDOW_VMAX,
@@ -362,6 +399,10 @@ class CrossCorrelation:
 
           t > dist/*vmin* + *signal2noise_trail*
           t < dist/*vmin* + *signal2noise_trail* + *noise_window_size*
+
+        If the noise window hits the time limit of the cross-correlation,
+        we try to extend it to the left until it hits the signal
+        window.
 
         @type periodbands: (list of (float, float))
         @type whiten: bool
@@ -406,17 +447,18 @@ class CrossCorrelation:
                                              filtertype=filtertype,
                                              **filterkwargs)
 
-            # signal window
-            tau_min = xcout.dist() / vmax
-            tau_max = xcout.dist() / vmin
-            window = (xcout.timearray <= tau_max) & (xcout.timearray >= tau_min)
-            peak = np.max(abs(dataarray[window]))
+            # signal and noise windows
+            tsignal, tnoise = xcout.signal_noise_windows(
+                vmin, vmax, signal2noise_trail, noise_window_size)
 
-            # noise window
-            tau_min = tau_max + signal2noise_trail
-            tau_max = tau_min + noise_window_size
-            window = (xcout.timearray <= tau_max) & (xcout.timearray >= tau_min)
-            noise = dataarray[window].std()
+            signal_window = (xcout.timearray >= tsignal[0]) & \
+                            (xcout.timearray <= tsignal[1])
+
+            noise_window = (xcout.timearray >= tnoise[0]) & \
+                           (xcout.timearray <= tnoise[1])
+
+            peak = np.abs(dataarray[signal_window]).max()
+            noise = dataarray[noise_window].std()
 
             # appending SNR
             SNR.append(peak / noise)
@@ -544,6 +586,10 @@ class CrossCorrelation:
                (xcout.timearray <= xlim[1])
         ylim = (xcdata[mask].min(), xcdata[mask].max())
 
+        # signal and noise windows
+        tsignal, tnoise = xcout.signal_noise_windows(
+            vmin, vmax, signal2noise_trail, noise_window_size)
+
         # plotting original cross-correlation
         axlist[0].plot(xcout.timearray, xcdata)
 
@@ -553,17 +599,15 @@ class CrossCorrelation:
             axlist[0].set_title(title)
 
         # signal window
-        for v, align in zip([vmin, vmax], ['left', 'right']):
-            axlist[0].plot(2 * [xcout.dist() / v], ylim, color='k', lw=1.5)
-            xy = (xcout.dist() / v, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
+        for t, v, align in zip(tsignal, [vmin, vmax], ['left', 'right']):
+            axlist[0].plot(2 * [t], ylim, color='k', lw=1.5)
+            xy = (t, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
             axlist[0].annotate(s='{} km/s'.format(v), xy=xy, xytext=xy,
                                horizontalalignment=align, fontsize=8,
                                bbox={'color': 'k', 'facecolor': 'white'})
 
         # noise window
-        noise_window = [self.dist() / vmin + signal2noise_trail,
-                        self.dist() / vmin + signal2noise_trail + noise_window_size]
-        axlist[0].fill_between(x=noise_window, y1=[ylim[1], ylim[1]],
+        axlist[0].fill_between(x=tnoise, y1=[ylim[1], ylim[1]],
                                y2=[ylim[0], ylim[0]], color='k', alpha=0.2)
 
         # inserting text, e.g., "Original data, SNR = 10.1"
@@ -606,13 +650,11 @@ class CrossCorrelation:
             ax.plot(xcout.timearray, dataarray)
 
             # signal window
-            for v in [vmin, vmax]:
-                ax.plot(2 * [xcout.dist() / v], ylim, color='k', lw=2)
+            for t in tsignal:
+                ax.plot(2 * [t], ylim, color='k', lw=2)
 
             # noise window
-            noise_window = [self.dist() / vmin + signal2noise_trail,
-                            self.dist() / vmin + signal2noise_trail + noise_window_size]
-            ax.fill_between(x=noise_window, y1=[ylim[1], ylim[1]],
+            ax.fill_between(x=tnoise, y1=[ylim[1], ylim[1]],
                             y2=[ylim[0], ylim[0]], color='k', alpha=0.2)
 
             # inserting text, e.g., "10 - 20 s, SNR = 10.1"
@@ -637,7 +679,7 @@ class CrossCorrelation:
                         bbox={'color': 'k', 'facecolor': 'white'})
 
                 # adding label to noise windows
-                ax.text(x=sum(noise_window) / 2,
+                ax.text(x=sum(tnoise) / 2,
                         y=ylim[0] + 0.1 * (ylim[1] - ylim[0]),
                         s="Noise window",
                         horizontalalignment='center',
