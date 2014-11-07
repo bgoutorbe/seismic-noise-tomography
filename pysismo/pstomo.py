@@ -16,8 +16,6 @@ from matplotlib.colors import ColorConverter
 import shutil
 from inspect import getargspec
 
-# todo:
-# - checkboard test
 
 # ====================================================
 # parsing configuration file to import some parameters
@@ -1143,7 +1141,7 @@ class VelocityMap:
         if not ax:
             aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
             # xzise has not effect if axes are given as input
-            fig = plt.figure(figsize=(xsize, aspectratio * xsize))
+            fig = plt.figure(figsize=(xsize, aspectratio * xsize), tight_layout=True)
             ax = fig.add_subplot(111)
 
         # plotting coasts and tectonic provinces
@@ -1191,7 +1189,8 @@ class VelocityMap:
         if fig:
             fig.show()
 
-    def plot_velocity(self, ax=None, xsize=10, perturbation=False, plot_title=True):
+    def plot_velocity(self, ax=None, xsize=10, perturbation=False, plot_title=True,
+                      vscale=None):
         """
         Plots velocity or perturbation relative to mean velocity
         (which is not necessarily the reference velocity)
@@ -1219,19 +1218,21 @@ class VelocityMap:
         if perturbation:
             # plotting % perturbation relative to mean velocity
             v = 100 * (v - vmean) / vmean
+
+        if not vscale and perturbation:
             # symetric scale
             maxdv = np.abs(v).max()
-            kwargs = {'vmin': -maxdv, 'vmax': maxdv}
-        else:
+            vscale = (-maxdv, maxdv)
+        elif not vscale and not perturbation:
             # scale centered on mean velocity
             maxdv = np.abs(v - vmean).max()
-            kwargs = {'vmin': vmean - maxdv, 'vmax': vmean + maxdv}
+            vscale = (vmean - maxdv, vmean + maxdv)
 
         extent = (self.grid.xmin, self.grid.get_xmax(),
                   self.grid.ymin, self.grid.get_ymax())
         m = ax.imshow(v.transpose(), origin='bottom', extent=extent,
                       interpolation='bicubic', cmap=CMAP_SEISMIC,
-                      **kwargs)
+                      vmin=vscale[0], vmax=vscale[1])
         c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
         c.set_label('Velocity perturbation (%)' if perturbation else 'Velocity (km/s)')
 
@@ -1256,7 +1257,7 @@ class VelocityMap:
         if not ax:
             aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
             # xzise has not effect if axes are given as input
-            fig = plt.figure(figsize=(xsize, aspectratio * xsize))
+            fig = plt.figure(figsize=(xsize, aspectratio * xsize), tight_layout=True)
             ax = fig.add_subplot(111)
 
         # plotting coasts and tectonic provinces
@@ -1302,7 +1303,7 @@ class VelocityMap:
         if not axes:
             aspectratio = (bbox[3] - bbox[2]) / (bbox[1] - bbox[0])
             # xzise has not effect if axes are given as input
-            fig = plt.figure(figsize=(xsize, aspectratio * xsize))
+            fig = plt.figure(figsize=(xsize, aspectratio * xsize), tight_layout=True)
             axes = [fig.add_subplot(121), fig.add_subplot(122)]
 
         ims = []

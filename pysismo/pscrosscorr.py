@@ -599,7 +599,7 @@ class CrossCorrelation:
             axlist[0].set_title(title)
 
         # signal window
-        for t, v, align in zip(tsignal, [vmin, vmax], ['left', 'right']):
+        for t, v, align in zip(tsignal, [vmin, vmax], ['right', 'left']):
             axlist[0].plot(2 * [t], ylim, color='k', lw=1.5)
             xy = (t, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
             axlist[0].annotate(s='{} km/s'.format(v), xy=xy, xytext=xy,
