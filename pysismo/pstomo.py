@@ -47,7 +47,6 @@ for x, r, g, b in zip(values, reds, greens, blues):
     cdict.setdefault('red', []).append((v, r, r))
     cdict.setdefault('green', []).append((v, g, g))
     cdict.setdefault('blue', []).append((v, b, b))
-
 CMAP_SEISMIC = LinearSegmentedColormap('customseismic', cdict)
 
 # custom color map for spatial resolution
@@ -62,9 +61,22 @@ for x, r, g, b in zip(values, reds, greens, blues):
     cdict.setdefault('red', []).append((v, r, r))
     cdict.setdefault('green', []).append((v, g, g))
     cdict.setdefault('blue', []).append((v, b, b))
-
 CMAP_RESOLUTION = LinearSegmentedColormap('customresolution', cdict)
 CMAP_RESOLUTION.set_bad(color='0.85')
+
+# custom color map for path density
+# ---------------------------------------
+colors = ['white', 'cyan', 'green', 'yellow', 'red', 'black']
+values = [0, 0.05, 0.1, 0.25, 0.5,  1.0]
+rgblist = [c.to_rgb(s) for s in colors]
+reds, greens, blues = zip(*rgblist)
+cdict = {}
+for x, r, g, b in zip(values, reds, greens, blues):
+    v = (x - min(values)) / (max(values) - min(values))
+    cdict.setdefault('red', []).append((v, r, r))
+    cdict.setdefault('green', []).append((v, g, g))
+    cdict.setdefault('blue', []).append((v, b, b))
+CMAP_DENSITY = LinearSegmentedColormap('customdensity', cdict)
 
 
 class DispersionCurve:
@@ -750,17 +762,17 @@ class VelocityMap:
             print "Calculating path densities"
         self.density = self.path_density()
 
-        # =================================================================
+        # =====================================================================
         # setting up regularization matrix Q = Ft.F + Ht.H
         #
-        # F[i,j] = alpha * | 1 (1 - S(ri,ri) according to me!)    if i = j
-        #                  | -S(ri,rj) / sum{S(ri,rj')} over j']  if i!= j
+        # F[i,j] = alpha * | 1                                         if i = j
+        #                  | -S(ri,rj) / sum{S(ri,rj')} over j' != i]  if i!= j
         #
-        # H[i,j] = beta * | exp[-lambda * path_density(ri)]      if i = j
-        #                 | 0                                    if i!= j
+        # H[i,j] = beta * | exp[-lambda * path_density(ri)]  if i = j
+        #                 | 0                                 if i!= j
         #
         # with S(.,.) the smoothing kernel and ri the locations grid nodes
-        # =================================================================
+        # =====================================================================
 
         # setting up distance matrix:
         # dists[i,j] = distance between nodes nb i and j
@@ -783,15 +795,10 @@ class VelocityMap:
         # setting up smoothing kernel:
         # S[i,j] = K * exp[-|ri-rj|**2 / (2 * CORRELATION_LENGTH**2)]
         S = np.exp(- dists**2 / (2 * correlation_length**2))
-        S /= S.sum(axis=-1)  # normalization
+        S /= S.sum(axis=-1) - np.diag(S)  # normalization of non-diagonal terms
 
         # setting up spatial regularization matrix F
         F = np.matrix(-S)
-
-        # F[i,i] = 1 according to Barmin et al.
-        # F[i,i] = 1 - S[i,i] according to my calculation!
-        # -> difference is negligible??
-
         F[np.diag_indices_from(F)] = 1
         F *= alpha
 
@@ -1150,13 +1157,16 @@ class VelocityMap:
         if plotdensity:
             # plotting path density
             d = self.grid.to_2D_array(self.density)
+            d[d == 0] = np.nan
             extent = (self.grid.xmin, self.grid.get_xmax(),
                       self.grid.ymin, self.grid.get_ymax())
-            m = ax.imshow(d.transpose(), origin='bottom', extent=extent,
+            m = ax.imshow(d.transpose(),
+                          origin='bottom',
+                          extent=extent,
                           interpolation='bicubic',
-                          cmap=pathdensity_colormap(dmax=d.max()))
-            c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1,
-                             ticks=range(0, int(d.max()) + 1, 5))
+                          cmap=CMAP_DENSITY,
+                          vmin=0)
+            c = plt.colorbar(m, ax=ax, orientation='horizontal', pad=0.1)
             c.set_label('Path density')
 
         if plotpaths:
