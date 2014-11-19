@@ -30,6 +30,8 @@ import matplotlib as mpl
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import gridspec
 
+plt.ioff()  # turning off interactive mode
+
 # ====================================================
 # parsing configuration file to import some parameters
 # ====================================================
@@ -2102,7 +2104,7 @@ def FTAN(x, dt, periods, alpha, phase_corr=None):
         # tapering
         taper = cosTaper(npts=mask.sum(), p=0.05)
         Xa[mask] *= taper
-        Xa[-mask] = 0.0
+        Xa[~mask] = 0.0
 
     # applying narrow bandpass Gaussian filters
     for iperiod, T0 in enumerate(periods):
@@ -2219,8 +2221,8 @@ def _extract_vgarray(amplmatrix, velocities, periodmask=None, optimizecurve=True
     masknan = np.isnan(vgarray)
     if masknan.any():
         vgarray[masknan] = np.interp(x=masknan.nonzero()[0],
-                                     xp=(-masknan).nonzero()[0],
-                                     fp=vgarray[-masknan])
+                                     xp=(~masknan).nonzero()[0],
+                                     fp=vgarray[~masknan])
 
     # further optimizing curve using a minimization algorithm
     if optimizecurve:
