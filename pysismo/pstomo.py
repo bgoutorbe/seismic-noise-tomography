@@ -1157,7 +1157,6 @@ class VelocityMap:
         if plotdensity:
             # plotting path density
             d = self.grid.to_2D_array(self.density)
-            d[d == 0] = np.nan
             extent = (self.grid.xmin, self.grid.get_xmax(),
                       self.grid.ymin, self.grid.get_ymax())
             m = ax.imshow(d.transpose(),
