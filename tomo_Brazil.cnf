@@ -190,6 +190,10 @@ FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
 
 FTAN_ALPHA = 20
 
+# relative strength of the smoothing term in the penalty function that
+# the dispersion curve seeks to minimize
+STRENGTH_SMOOTHING = 1.0
+
 
 # ============
 [tomography]

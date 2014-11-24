@@ -17,6 +17,8 @@ import shutil
 from inspect import getargspec
 
 
+# todo: discard measurments if too different from trimester velocities (see BB15B-SPB)
+
 # ====================================================
 # parsing configuration file to import some parameters
 # ====================================================

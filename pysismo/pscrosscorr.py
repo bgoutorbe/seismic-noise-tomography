@@ -38,7 +38,7 @@ plt.ioff()  # turning off interactive mode
 from psconfig import (
     CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS, CROSSCORR_TMAX, PERIOD_RESAMPLE,
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
-    RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA,
+    RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA, STRENGTH_SMOOTHING,
     BBOX_LARGE, BBOX_SMALL)
 
 # ========================
@@ -601,7 +601,7 @@ class CrossCorrelation:
             axlist[0].set_title(title)
 
         # signal window
-        for t, v, align in zip(tsignal, [vmin, vmax], ['right', 'left']):
+        for t, v, align in zip(tsignal, [vmax, vmin], ['right', 'left']):
             axlist[0].plot(2 * [t], ylim, color='k', lw=1.5)
             xy = (t, ylim[0] + 0.1 * (ylim[1] - ylim[0]))
             axlist[0].annotate(s='{} km/s'.format(v), xy=xy, xytext=xy,
@@ -709,26 +709,40 @@ class CrossCorrelation:
         if fig:
             fig.show()
 
-    def FTAN(self, whiten=False, phase_corr=None, months=None, vgarray_init=None):
+    def FTAN(self, whiten=False, phase_corr=None, months=None, vgarray_init=None,
+             optimize_curve=None, strength_smoothing=STRENGTH_SMOOTHING):
         """
-        Frequency-time analysis of a cross-correlation signal.
+        Frequency-time analysis of a cross-correlation function.
+
         Calculates the Fourier transform of the cross-correlation,
-        calculates the analytic signal in frequency domain,
+        calculates the analytic signal in the frequency domain,
         applies Gaussian bandpass filters centered around given
-        center periods, and calculates the filtered analytic
-        signal back in time domain.
+        center periods, calculates the filtered analytic
+        signal back in time domain and extracts the group velocity
+        dispersion curve.
 
-        Set whiten=True to whiten the spectrum of the cross-corr.
+        Options:
+        - set *whiten*=True to whiten the spectrum of the cross-corr.
+        - provide a function of frequency in *phase_corr* to include a
+          phase correction.
+        - provide a list of (int, int) in *months* to restrict the FTAN
+          to a subset of month-year
+        - provide an initial guess of dispersion curve (in *vgarray_init*)
+          to accelerate the group velocity curve extraction
+        - set *optimize_curve*=True to further optimize the dispersion
+          curve, i.e., find the curve that really minimizes the penalty
+          function (which seeks to maximize the traversed amplitude while
+          penalizing jumps) -- but not necessarily rides through
+          local maxima any more. Default is True for the raw FTAN (no phase
+          corr provided), False for the clean FTAN (phase corr provided)
+        - set the strength of the smoothing term of the dispersion curve
+          in *strength_smoothing*
 
-        Give a function of frequency in *phase_corr* to include a
-        phase correction.
-
-        Returns the amplitude matrix A(T0,v) and phase matrix phi(T0,v),
-        that is, the amplitude and phase function of velocity v of the
-        analytic signal filtered around period T0.
-        Also extracts and returns the group velocity curve from the
-        amplitude matrix (an initial guess may be given to accelerate
-        vg curve extraction).
+        Returns (1) the amplitude matrix A(T0,v), (2) the phase matrix
+        phi(T0,v) (that is, the amplitude and phase function of velocity
+        v of the analytic signal filtered around period T0) and (3) the
+        group velocity disperion curve extracted from the amplitude
+        matrix.
 
         FTAN periods in variable *FTAN_PERIODS*
         FTAN velocities in variable *FTAN_VELOCITIES*
@@ -747,6 +761,8 @@ class CrossCorrelation:
         """
         # no phase correction given <=> raw FTAN
         raw_ftan = phase_corr is None
+        if optimize_curve is None:
+            optimize_curve = raw_ftan
         ftan_periods = RAWFTAN_PERIODS if raw_ftan else CLEANFTAN_PERIODS
 
         # getting the symmetrized cross-correlation
@@ -784,14 +800,12 @@ class CrossCorrelation:
 
         # extracting the group velocity curve from the amplitude matrix,
         # that is, the velocity curve that maximizes amplitude and best
-        # avoids jumps, in the interval of clean FTAN periods
-        periodmask = ((np.array(ftan_periods) >= min(CLEANFTAN_PERIODS)) &
-                      (np.array(ftan_periods) <= max(CLEANFTAN_PERIODS)))
-        vgarray = _extract_vgarray(amplmatrix=ampl_resampled,
-                                   velocities=FTAN_VELOCITIES,
-                                   periodmask=periodmask,
-                                   optimizecurve=raw_ftan,
-                                   vgarray_init=vgarray_init)
+        # avoids jumps
+        vgarray = extract_dispcurve(amplmatrix=ampl_resampled,
+                                    velocities=FTAN_VELOCITIES,
+                                    varray_init=vgarray_init,
+                                    optimizecurve=optimize_curve,
+                                    strength_smoothing=strength_smoothing)
 
         vgcurve = pstomo.DispersionCurve(periods=ftan_periods,
                                          v=vgarray,
@@ -803,7 +817,9 @@ class CrossCorrelation:
     def FTAN_complete(self, whiten=False, months=None, add_SNRs=True,
                       vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
                       signal2noise_trail=SIGNAL2NOISE_TRAIL,
-                      noise_window_size=NOISE_WINDOW_SIZE):
+                      noise_window_size=NOISE_WINDOW_SIZE,
+                      optimize_curve=None,
+                      strength_smoothing=STRENGTH_SMOOTHING):
         """
         Frequency-time analysis including phase-matched filter and
         seasonal variability:
@@ -821,7 +837,22 @@ class CrossCorrelation:
         of the signal window and the noise window
         (see function xc.SNR()).
 
-        Set whiten=True to whiten the spectra of the cross-corr.
+        Options:
+        - set *whiten*=True to whiten the spectrum of the cross-corr.
+        - provide a list of (int, int) in *months* to restrict the FTAN
+          to a subset of month-year
+        - set *add_SNRs* to calculate the SNR function of period associated
+          with the disperions curves
+        - adjust the signal window and the noise window of the SNR through
+          *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+        - set *optimize_curve*=True to further optimize the dispersion
+          curve, i.e., find the curve that really minimizes the penalty
+          function (which seeks to maximize the traversed amplitude while
+          preserving smoothness) -- but not necessarily rides through
+          local maxima. Default is True for the raw FTAN, False for the
+          clean FTAN
+        - set the strength of the smoothing term of the dispersion curve
+          in *strength_smoothing*
 
         Returns raw ampl, raw vg, cleaned ampl, cleaned vg.
 
@@ -844,17 +875,19 @@ class CrossCorrelation:
 
         # raw FTAN (no need to whiten any more)
         rawampl, _, rawvg = xc.FTAN(whiten=False,
-                                    months=months)
+                                    months=months,
+                                    optimize_curve=optimize_curve,
+                                    strength_smoothing=strength_smoothing)
 
         # phase function from raw vg curve
-        phase_corr = xc.phase_func(vgcurve=rawvg,
-                                   whiten=False,
-                                   months=months)
+        phase_corr = xc.phase_func(vgcurve=rawvg)
 
         # clean FTAN
         cleanampl, _, cleanvg = xc.FTAN(whiten=False,
                                         phase_corr=phase_corr,
-                                        months=months)
+                                        months=months,
+                                        optimize_curve=optimize_curve,
+                                        strength_smoothing=strength_smoothing)
 
         # adding spectral SNRs associated with the periods of the
         # clean vg curve
@@ -885,16 +918,18 @@ class CrossCorrelation:
                 # extracted from all data as initial guess
                 _, _, rawvg_trimester = xc.FTAN(whiten=False,
                                                 months=months_of_xc,
-                                                vgarray_init=rawvg.v)
+                                                vgarray_init=rawvg.v,
+                                                optimize_curve=optimize_curve,
+                                                strength_smoothing=strength_smoothing)
 
-                phase_corr_trimester = xc.phase_func(vgcurve=rawvg_trimester,
-                                                     whiten=False,
-                                                     months=months_of_xc)
+                phase_corr_trimester = xc.phase_func(vgcurve=rawvg_trimester)
 
                 _, _, cleanvg_trimester = xc.FTAN(whiten=False,
                                                   phase_corr=phase_corr_trimester,
                                                   months=months_of_xc,
-                                                  vgarray_init=cleanvg.v)
+                                                  vgarray_init=cleanvg.v,
+                                                  optimize_curve=optimize_curve,
+                                                  strength_smoothing=strength_smoothing)
 
                 # adding spectral SNRs associated with the periods of the
                 # clean trimester vg curve
@@ -909,7 +944,7 @@ class CrossCorrelation:
 
         return rawampl, rawvg, cleanampl, cleanvg
 
-    def phase_func(self, vgcurve=None, whiten=False, months=None):
+    def phase_func(self, vgcurve):
         """
         Calculates the phase from the group velocity obtained
         using method self.FTAN, following the relationship:
@@ -921,16 +956,8 @@ class CrossCorrelation:
 
         @param vgcurve: group velocity curve
         @type vgcurve: L{DispersionCurve}
-        @type whiten: bool
-        @type months: list of (L{MonthYear} or (int, int))
         @rtype: L{scipy.interpolate.interpolate.interp1d}
         """
-        # FTAN analysis to extract array of group velocities
-        # if not provided by user
-        if vgcurve is None:
-            vgcurve = self.FTAN(whiten=whiten,
-                                months=months)[2]
-
         freqarray = 1.0 / vgcurve.periods[::-1]
         vgarray = vgcurve.v[::-1]
 
@@ -950,7 +977,8 @@ class CrossCorrelation:
                   logscale=True, bbox=BBOX_SMALL, figsize=(16, 5), outfile=None,
                   vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
                   signal2noise_trail=SIGNAL2NOISE_TRAIL,
-                  noise_window_size=NOISE_WINDOW_SIZE):
+                  noise_window_size=NOISE_WINDOW_SIZE,
+                  **kwargs):
         """
         Plots 4 panels related to frequency-time analysis:
 
@@ -981,19 +1009,17 @@ class CrossCorrelation:
         *cleanampl*, *cleanvg* (normally from method self.FTAN_complete).
         If not given, the FTAN is performed by calling self.FTAN_complete().
 
-        Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
-        control the location of the signal window and the noise window
-        (see function self.SNR()).
-
-        Set whiten=True to whiten the spectrum of the cross-correlation.
-
-        Set normalize_ampl=True to normalize the plotted amplitude (so
-        that the max amplitude = 1 at each period).
-
-        Set logscale=True to plot log(ampl^2) instead of ampl.
-
-        Give a list of months in parameter *months* to perform the FTAN
-        for a particular subset of months.
+        Options:
+        - Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+          control the location of the signal window and the noise window
+          (see function self.SNR()).
+        - Set whiten=True to whiten the spectrum of the cross-correlation.
+        - Set normalize_ampl=True to normalize the plotted amplitude (so
+          that the max amplitude = 1 at each period).
+        - Set logscale=True to plot log(ampl^2) instead of ampl.
+        - Give a list of months in parameter *months* to perform the FTAN
+          for a particular subset of months.
+        - additional kwargs sent to *self.FTAN_complete*
 
         The method returns the plot figure.
 
@@ -1023,7 +1049,8 @@ class CrossCorrelation:
                 whiten=whiten, months=months, add_SNRs=True,
                 vmin=vmin, vmax=vmax,
                 signal2noise_trail=signal2noise_trail,
-                noise_window_size=noise_window_size)
+                noise_window_size=noise_window_size,
+                **kwargs)
 
         if normalize_ampl:
             # normalizing amplitude at each period before plotting it
@@ -1701,7 +1728,8 @@ class CrossCorrelationCollection(AttribDict):
               minSNR=None, minspectSNR=None, monthyears=None,
               vmin=SIGNAL_WINDOW_VMIN, vmax=SIGNAL_WINDOW_VMAX,
               signal2noise_trail=SIGNAL2NOISE_TRAIL,
-              noise_window_size=NOISE_WINDOW_SIZE):
+              noise_window_size=NOISE_WINDOW_SIZE,
+              **kwargs):
         """
         Exports raw-clean FTAN plots to pdf (one page per pair)
         and clean dispersion curves to pickle file by calling
@@ -1716,16 +1744,15 @@ class CrossCorrelationCollection(AttribDict):
 
         e.g.: ./output/FTAN/FTAN_whitenedxc_minspectSNR=10
 
-        Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
-        control the location of the signal window and the noise window
-        (see function xc.SNR()).
-
-        Set whiten=True to whiten the spectrum of the cross-correlation.
-
-        Set normalize_ampl=True to normalize the plotted amplitude (so
-        that the max amplitude = 1 at each period).
-
-        Set logscale=True to plot log(ampl^2) instead of ampl.
+        Options:
+        - Parameters *vmin*, *vmax*, *signal2noise_trail*, *noise_window_size*
+          control the location of the signal window and the noise window
+          (see function xc.SNR()).
+        - Set whiten=True to whiten the spectrum of the cross-correlation.
+        - Set normalize_ampl=True to normalize the plotted amplitude (so
+          that the max amplitude = 1 at each period).
+        - Set logscale=True to plot log(ampl^2) instead of ampl.
+        - additional kwargs sent to FTAN_complete() and plot_FTAN()
 
         See. e.g., Levshin & Ritzwoller, "Automated detection,
         extraction, and measurement of regional surface waves",
@@ -1801,7 +1828,8 @@ class CrossCorrelationCollection(AttribDict):
                 whiten=whiten, months=monthyears,
                 vmin=vmin, vmax=vmax,
                 signal2noise_trail=signal2noise_trail,
-                noise_window_size=noise_window_size)
+                noise_window_size=noise_window_size,
+                **kwargs)
 
             # plotting raw-clean FTAN
             fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg,
@@ -1811,7 +1839,8 @@ class CrossCorrelationCollection(AttribDict):
                                showplot=False,
                                vmin=vmin, vmax=vmax,
                                signal2noise_trail=signal2noise_trail,
-                               noise_window_size=noise_window_size)
+                               noise_window_size=noise_window_size,
+                               **kwargs)
             pdf.savefig(fig)
             plt.close()
 
@@ -2120,131 +2149,146 @@ def FTAN(x, dt, periods, alpha, phase_corr=None):
     return amplitude, phase
 
 
-def _extract_vgarray(amplmatrix, velocities, periodmask=None, optimizecurve=True,
-                     vgarray_init=None):
+def extract_dispcurve(amplmatrix, velocities, periodmask=None, varray_init=None,
+                      optimizecurve=True, strength_smoothing=STRENGTH_SMOOTHING):
     """
-    Extracts a group velocity vg vs period T from an amplitude
-    matrix *ampl*, itself obtained from FTAN.
+    Extracts a disperion curve (velocity vs period) from an amplitude
+    matrix *amplmatrix*, itself obtained from FTAN.
 
     Among the curves that ride along local maxima of amplitude,
-    the selected group velocity curve vg(T) maximizes the sum of
+    the selected group velocity curve v(T) maximizes the sum of
     amplitudes, while preserving some smoothness (minimizing of
-    *_vg_minimizes*), over periods covered by *periodmask*.
+    *dispcurve_penaltyfunc*).
     The curve can be furthered optimized using a minimization
-    algorithm.
+    algorithm, which then seek the curve that really minimizes
+    the penalty function -- but does not necessarily ride through
+    the local maxima any more.
 
-    If an initial vg array is given (*vgarray_init*), then only
-    the optimization algorithm is applied, using *vgarray_init*
-    as starting point.
+    If an initial vel array is given (*varray_init*) and
+    *optimizecurve*=True then only the optimization algorithm
+    is applied, using *varray_init* as starting point.
 
-    ampl[i, j] = amplitude at period nb i and velocity nb j
+    *strength_smoothing* controls the relative strength of the
+    smoothing term in the penalty function.
+
+    amplmatrix[i, j] = amplitude at period nb i and velocity nb j
 
     @type amplmatrix: L{numpy.ndarray}
     @type velocities: L{numpy.ndarray}
-    @type vgarray_init: L{numpy.ndarray}
+    @type varray_init: L{numpy.ndarray}
     @rtype: L{numpy.ndarray}
     """
 
-    if not vgarray_init is None and optimizecurve:
+    if not varray_init is None and optimizecurve:
         # if an initial guess for vg array is given, we simply apply
         # the optimization procedure using it as starting guess
-        return _optimize_vg(amplmatrix=amplmatrix,
-                            velocities=velocities,
-                            vg0=vgarray_init)[0]
+        return optimize_dispcurve(amplmatrix=amplmatrix,
+                                  velocities=velocities,
+                                  vg0=varray_init,
+                                  strength_smoothing=strength_smoothing)[0]
 
     nperiods = amplmatrix.shape[0]
 
-    # building list of possible (vg, ampl) curves at all periods
-    vgampl_arrays = None
+    # building list of possible (v, ampl) curves at all periods
+    v_ampl_arrays = None
     for iperiod in range(nperiods):
         # local maxima of amplitude at period nb *iperiod*
         argsmax = psutils.local_maxima_indices(amplmatrix[iperiod, :])
 
         if not argsmax:
-            # no local minimum => leave nan in (vg, ampl) curves
+            # no local minimum => leave nan in (v, ampl) curves
             continue
 
-        if not vgampl_arrays:
-            # initialzing the list of possible (vg, ampl) curves with local maxima
+        if not v_ampl_arrays:
+            # initialzing the list of possible (v, ampl) curves with local maxima
             # at current period, and nan elsewhere
-            vgampl_arrays = [(np.zeros(nperiods) * np.nan, np.zeros(nperiods) * np.nan)
+            v_ampl_arrays = [(np.zeros(nperiods) * np.nan, np.zeros(nperiods) * np.nan)
                              for _ in range(len(argsmax))]
-            for argmax, (vgarray, amplarray) in zip(argsmax, vgampl_arrays):
-                vgarray[iperiod] = velocities[argmax]
+            for argmax, (varray, amplarray) in zip(argsmax, v_ampl_arrays):
+                varray[iperiod] = velocities[argmax]
                 amplarray[iperiod] = amplmatrix[iperiod, argmax]
             continue
 
         # inserting the velocities that locally maximizes amplitude
         # to the correct curves
         for argmax in argsmax:
-            # velocity that locally maximizes amplitude (potential group vel)
-            vg = velocities[argmax]
+            # velocity that locally maximizes amplitude
+            v = velocities[argmax]
 
-            # we select the (vg, ampl) curve for which the jump wrt previous
-            # vg (not nan) is minimum
-            lastvg = lambda vgarray: vgarray[:iperiod][~np.isnan(vgarray[:iperiod])][-1]
-            vgjump = lambda (vgarray, amplarray): abs(lastvg(vgarray) - vg)
-            vgarray, amplarray = min(vgampl_arrays, key=vgjump)
+            # we select the (v, ampl) curve for which the jump wrt previous
+            # v (not nan) is minimum
+            lastv = lambda varray: varray[:iperiod][~np.isnan(varray[:iperiod])][-1]
+            vjump = lambda (varray, amplarray): abs(lastv(varray) - v)
+            varray, amplarray = min(v_ampl_arrays, key=vjump)
 
-            # if the curve already has a vg attributed at this period, we
+            # if the curve already has a vel attributed at this period, we
             # duplicate it
-            if not np.isnan(vgarray[iperiod]):
-                vgarray, amplarray = copy.copy(vgarray), copy.copy(amplarray)
-                vgampl_arrays.append((vgarray, amplarray))
+            if not np.isnan(varray[iperiod]):
+                varray, amplarray = copy.copy(varray), copy.copy(amplarray)
+                v_ampl_arrays.append((varray, amplarray))
 
             # inserting (vg, ampl) at current period to the selected curve
-            vgarray[iperiod] = vg
+            varray[iperiod] = v
             amplarray[iperiod] = amplmatrix[iperiod, argmax]
 
         # filling curves without (vg, ampl) data at the current period
-        unfilledcurves = [(vgarray, amplarray) for vgarray, amplarray in vgampl_arrays
-                          if np.isnan(vgarray[iperiod])]
-        for vgarray, amplarray in unfilledcurves:
+        unfilledcurves = [(varray, amplarray) for varray, amplarray in v_ampl_arrays
+                          if np.isnan(varray[iperiod])]
+        for varray, amplarray in unfilledcurves:
             # inserting vel (which locally maximizes amplitude) for which
-            # the jump wrt the previous (not nan) vg of the curve is minimum
-            lastvg = vgarray[:iperiod][~np.isnan(vgarray[:iperiod])][-1]
-            vgjump = lambda arg: abs(lastvg - velocities[arg])
-            argmax = min(argsmax, key=vgjump)
-            vgarray[iperiod] = velocities[argmax]
+            # the jump wrt the previous (not nan) v of the curve is minimum
+            lastv = varray[:iperiod][~np.isnan(varray[:iperiod])][-1]
+            vjump = lambda arg: abs(lastv - velocities[arg])
+            argmax = min(argsmax, key=vjump)
+            varray[iperiod] = velocities[argmax]
             amplarray[iperiod] = amplmatrix[iperiod, argmax]
 
     # amongst possible vg curves, we select the one that maximizes amplitude,
     # while preserving some smoothness
-    def funcmin((vgarray, amplarray)):
+    def funcmin((varray, amplarray)):
         if not periodmask is None:
-            return _vg_minimizes(vgarray[periodmask], amplarray[periodmask])
+            return dispcurve_penaltyfunc(varray[periodmask],
+                                         amplarray[periodmask],
+                                         strength_smoothing=strength_smoothing)
         else:
-            return _vg_minimizes(vgarray, amplarray)
-    vgarray, _ = min(vgampl_arrays, key=funcmin)
+            return dispcurve_penaltyfunc(varray, amplarray,
+                                         strength_smoothing=strength_smoothing)
+    varray, _ = min(v_ampl_arrays, key=funcmin)
 
     # filling holes of vg curve
-    masknan = np.isnan(vgarray)
+    masknan = np.isnan(varray)
     if masknan.any():
-        vgarray[masknan] = np.interp(x=masknan.nonzero()[0],
-                                     xp=(~masknan).nonzero()[0],
-                                     fp=vgarray[~masknan])
+        varray[masknan] = np.interp(x=masknan.nonzero()[0],
+                                    xp=(~masknan).nonzero()[0],
+                                    fp=varray[~masknan])
 
     # further optimizing curve using a minimization algorithm
     if optimizecurve:
         # first trying with initial guess = the one above
-        vgcurve1, funcmin1 = _optimize_vg(amplmatrix=amplmatrix,
-                                          velocities=velocities,
-                                          vg0=vgarray)
+        varray1, funcmin1 = optimize_dispcurve(amplmatrix=amplmatrix,
+                                               velocities=velocities,
+                                               vg0=varray,
+                                               periodmask=periodmask,
+                                               strength_smoothing=strength_smoothing)
         # then trying with initial guess = constant velocity 3 km/s
-        vgcurve2, funcmin2 = _optimize_vg(amplmatrix=amplmatrix,
-                                          velocities=velocities,
-                                          vg0=3.0*np.ones(nperiods))
-        vgarray = vgcurve1 if funcmin1 <= funcmin2 else vgcurve2
+        varray2, funcmin2 = optimize_dispcurve(amplmatrix=amplmatrix,
+                                               velocities=velocities,
+                                               vg0=3.0 * np.ones(nperiods),
+                                               periodmask=periodmask,
+                                               strength_smoothing=strength_smoothing)
+        varray = varray1 if funcmin1 <= funcmin2 else varray2
 
-    return vgarray
+    return varray
 
 
-def _optimize_vg(amplmatrix, velocities, vg0):
+def optimize_dispcurve(amplmatrix, velocities, vg0, periodmask=None,
+                       strength_smoothing=STRENGTH_SMOOTHING):
     """
-    Optimizing vg curve, i.e., looking for curve that
-    minimizes *_vg_minimizes*.
+    Optimizing vel curve, i.e., looking for curve that really
+    minimizes *dispcurve_penaltyfunc* -- and does not necessarily
+    ride any more through local maxima
 
-    Returns optimized vg curve and the corresponding
+    Returns optimized vel curve and the corresponding
     value of the objective function to minimize
 
     @type amplmatrix: L{numpy.ndarray}
@@ -2254,61 +2298,63 @@ def _optimize_vg(amplmatrix, velocities, vg0):
     nperiods = amplmatrix.shape[0]
 
     # function that returns the amplitude curve
-    # a given input vg curve goes through
+    # a given input vel curve goes through
     ixperiods = np.arange(nperiods)
     amplcurvefunc2d = RectBivariateSpline(ixperiods, velocities, amplmatrix, kx=1, ky=1)
     amplcurvefunc = lambda vgcurve: amplcurvefunc2d.ev(ixperiods, vgcurve)
 
-    def funcmin(vgcurve, verbose=False):
+    def funcmin(varray):
         """Objective function to minimize"""
-        # amplitude curve corresponding to vg vurve
-        return _vg_minimizes(vgcurve, amplcurvefunc(vgcurve), verbose=verbose)
-
+        # amplitude curve corresponding to vel curve
+        if not periodmask is None:
+            return dispcurve_penaltyfunc(varray[periodmask],
+                                         amplcurvefunc(varray)[periodmask],
+                                         strength_smoothing=strength_smoothing)
+        else:
+            return dispcurve_penaltyfunc(varray,
+                                         amplcurvefunc(varray),
+                                         strength_smoothing=strength_smoothing)
+            
     bounds = nperiods * [(min(velocities) + 0.1, max(velocities) - 0.1)]
     method = 'SLSQP'  # methods with bounds: L-BFGS-B, TNC, SLSQP
     resmin = minimize(fun=funcmin, x0=vg0, method=method, bounds=bounds)
     vgcurve = resmin['x']
-    #_ = funcmin(vgcurve, verbose=True)
+    # _ = funcmin(vgcurve, verbose=True)
 
     return vgcurve, resmin['fun']
 
 
-def _vg_minimizes(vgarray, amplarray, penalizezigzags=False, verbose=False):
+def dispcurve_penaltyfunc(vgarray, amplarray, strength_smoothing=STRENGTH_SMOOTHING):
     """
-    Objective function that vg curve must minimize.
+    Objective function that the vg dispersion curve must minimize.
+    The function is composed of two terms:
+
+    - the first term, - sum(amplitude), seeks to maximize the amplitudes
+      traversed by the curve
+    - the second term, sum(dvg**2) (with dvg the difference between
+      consecutive velocities), is a smoothing term penalizing
+      discontinuities
+
+    *vgarray* is the velocity curve function of period, *amplarray*
+    gives the amplitudes traversed by the curve and *strength_smoothing*
+    is the strength of the smoothing term.
+
     @type vgarray: L{numpy.ndarray}
     @type amplarray: L{numpy.ndarray}
     """
     # removing nans
     notnan = -(np.isnan(vgarray) | np.isnan(amplarray))
     vgarray = vgarray[notnan]
-    amplarray = amplarray[notnan]
 
     # jumps
     dvg = vgarray[1:] - vgarray[:-1]
-    sumdvg2 = sum(dvg**2)
-
-    # zigzags
-    sumzigzags = 0.0
-    if penalizezigzags:
-        iextrema = (psutils.local_maxima_indices(vgarray, include_edges=False) +
-                    psutils.local_maxima_indices(-vgarray, include_edges=False))
-        if len(iextrema) >= 2:
-            iextrema = np.array(sorted(set(iextrema)))
-            diextrema = iextrema[1:] - iextrema[:-1]
-            dvgextrema = vgarray[iextrema][1:] - vgarray[iextrema][:-1]
-            # small-scale zigzags are penalized
-            sumzigzags = sum(np.abs(dvgextrema / diextrema))
+    sumdvg2 = np.sum(dvg**2)
 
     # amplitude
     sumamplitude = amplarray.sum()
 
-    if verbose:
-        msg = 'sum dvg2: {}\nsum zigzags: {}\nsum ampl: {}'
-        print msg.format(sumdvg2, sumzigzags, sumamplitude)
-
     # vg curve must maximize amplitude and minimize jumps
-    return -sumamplitude + sumdvg2 + sumzigzags
+    return -sumamplitude + strength_smoothing*sumdvg2
 
 
 if __name__ == '__main__':

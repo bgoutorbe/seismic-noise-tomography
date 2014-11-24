@@ -183,6 +183,9 @@ FTAN_VELOCITIES_STARTSTOPSTEP = json.loads(FTAN_VELOCITIES_STARTSTOPSTEP)
 FTAN_VELOCITIES = np.arange(*FTAN_VELOCITIES_STARTSTOPSTEP)
 FTAN_VELOCITIES_STEP = FTAN_VELOCITIES_STARTSTOPSTEP[2]
 
+# relative strength of the smoothing term in the penalty function that
+# the dispersion curve seeks to minimize
+STRENGTH_SMOOTHING = config.getfloat('FTAN', 'STRENGTH_SMOOTHING')
 
 # --------------------------------
 # Tomographic inversion parameters

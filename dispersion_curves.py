@@ -58,6 +58,8 @@ if not res:
 else:
     pickle_files = [flist[int(i)-1] for i in res.split()]
 
+usersuffix = raw_input("\nEnter suffix to append: [none]\n").strip()
+
 # processing each set of cross-correlations
 for pickle_file in pickle_files:
     print "\nProcessing cross-correlations of file: " + pickle_file
@@ -66,6 +68,8 @@ for pickle_file in pickle_files:
     # copying the suffix of cross-correlations file
     # (everything between 'xcorr_' and the extension)
     suffix = os.path.splitext(os.path.basename(pickle_file))[0].replace('xcorr_', '')
+    if usersuffix:
+        suffix = '_'.join([suffix, usersuffix])
 
     # Performing the two-step FTAN, exporting the figures to a
     # pdf file (one page per cross-correlation) and the clean
