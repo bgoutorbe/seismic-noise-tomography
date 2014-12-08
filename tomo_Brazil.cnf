@@ -60,9 +60,20 @@
 [paths]
 #======
 
-MSEED_DIR = ../IRIS data                     ; dir of miniseed files
-STATIONXML_DIR = ../StationXML files         ; dir of StationXML files
-DATALESS_DIR = ../Dataless seed              ; dir of dataless files
+# dir of miniseed, StationXML and dataless seed files. StationXML and dataless
+# files can have any name, provided that the extension is 'xml' and 'dataless',
+# respectively. One file can contain several stations.
+#
+# In the current version of the program, miniseed files MUST be
+# organized inside their directory as:
+# <year>-<month>/<network>.<station>.<channel>.mseed, e.g.:
+# 1988-10/BL.JFOB.BHZ.mseed
+# So, there is one sub-directory per month, and inside it, one miniseed
+# file per month and per station.
+
+MSEED_DIR = ../IRIS data
+STATIONXML_DIR = ../StationXML files
+DATALESS_DIR = ../Dataless seed
 
 CROSSCORR_DIR = ./output/cross-correlation  ; dir of cross-correlation results
 FTAN_DIR = ./output/FTAN                    ; dir of FTAN results (including dispersion curves)
@@ -133,7 +144,7 @@ CROSSCORR_TMAX = 2000               ; max time window (s) for cross-correlation
 CROSSCORR_SKIPLOCS = ["50"]         ; locations to skip (JSON list)
 
 PERIODMIN = 7.0                     ; bandpass parameters
-PERIODMAX = 150.0
+PERIODMAX = 60.0
 CORNERS = 2
 ZEROPHASE = True
 PERIOD_RESAMPLE = 1.0               ; resample period to decimate traces, after band-pass

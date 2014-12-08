@@ -15,6 +15,13 @@ stations MUST HAVE DIFFERENT NAMES, even if they do not belong to
 the same network. Also, one given station cannot have several
 sets of coordinates: if so, it will be skipped.
 
+In the current version of the program, miniseed files MUST be
+organized inside their directory as:
+<year>-<month>/<network>.<station>.<channel>.mseed, e.g.:
+1988-10/BL.JFOB.BHZ.mseed
+So, there is one sub-directory per month, and inside it, one miniseed
+file  per month and per station.
+
 The implemented algorithm follows the lines of Bensen et al.,
 "Processing seismic ambient noise data to obtain reliable broad-band
 surface wave dispersion measurements", Geophys. J. Int. (2007).
