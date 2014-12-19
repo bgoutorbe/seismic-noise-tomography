@@ -231,8 +231,8 @@ CORRELATION_LENGTH = 150
 # Default strength of the spatial smoothing term (alpha) and the
 # weighted norm penalization term (beta) in the penalty function
 
-ALPHA = 600
-BETA = 100
+ALPHA = 400
+BETA = 200
 
 # Default parameter in the damping factor of the norm penalization term,
 # such that the norm is weighted by exp(- lambda_*path_density)

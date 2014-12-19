@@ -84,10 +84,9 @@ PERIODS = [5.0, 10.0, 16.0, 20.0, 23.0]
 GRID_STEPS = (1.0, 1.0)
 MINPECTSNRS = (7.0, 7.0)
 CORR_LENGTHS = (150, 150)
-ALPHAS = (3000, 600)
+ALPHAS = (3000, 400)
 BETAS = (200, 200)
 LAMBDAS = (0.3, 0.3)
-SUFFIX = ''
 
 # parsing configuration file to import dirs
 from pysismo.psconfig import FTAN_DIR, TOMO_DIR
@@ -104,6 +103,8 @@ if not res:
     pickle_files = [f for f in flist if f[-1] != '~']
 else:
     pickle_files = [flist[int(i)-1] for i in res.split()]
+
+usersuffix = raw_input("\nEnter suffix to append: [none]\n").strip()
 
 # loop on pickled curves
 for pickle_file in pickle_files:
@@ -123,8 +124,8 @@ for pickle_file in pickle_files:
         pass
     basename = os.path.basename(pickle_file).replace('FTAN', '2-pass-tomography')
     outprefix = os.path.join(TOMO_DIR, os.path.splitext(basename)[0])
-    if SUFFIX:
-        outprefix += '_{}'.format(SUFFIX)
+    if usersuffix:
+        outprefix += '_{}'.format(usersuffix)
     pdfname = outprefix + '.pdf'
     picklename = outprefix + '.pickle'
     print "Maps will be exported as figures to file: " + pdfname
