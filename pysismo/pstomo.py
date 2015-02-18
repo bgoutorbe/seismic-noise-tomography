@@ -6,6 +6,7 @@ import psutils
 import itertools as it
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.interpolate import interp1d
 import os
 import glob
 import pickle
@@ -87,10 +88,24 @@ class DispersionCurve:
     as a function of period
     """
     def __init__(self, periods, v, station1, station2,
-                 minspectSNR=MINSPECTSNR, minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
-                 maxsdev=MAXSDEV, minnbtrimester=MINNBTRIMESTER,
-                 maxperiodfactor=MAXPERIOD_FACTOR):
+                 minspectSNR=MINSPECTSNR,
+                 minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
+                 maxsdev=MAXSDEV,
+                 minnbtrimester=MINNBTRIMESTER,
+                 maxperiodfactor=MAXPERIOD_FACTOR,
+                 nom2inst_periods=None):
         """
+        Initiliazes the dispersion curve between the pair *station1*-*station2*
+        using the given velocities (array *v*) at the given *periods*.
+        Selection parameters (used to select velocities that will participate
+        to the tomographic inversion) are given in *minspectSNR*,
+        *minspectSNR_nosdev*, *maxsdev*, *minnbtrimester* and *maxperiodfactor*.
+
+        Periods can be nominal (i.e., center of Gaussian filters of FTAN) or
+        instantaneous (dphi/dt). If periods are instantaneous, then a list
+        of tuples [(nominal period, instantaneous period), ...] should be
+        provided in *nom2inst_periods*
+
         @type periods: iterable
         @type v: iterable
         @type station1: L{psstation.Station}
@@ -109,12 +124,15 @@ class DispersionCurve:
         self.station1 = station1
         self.station2 = station2
 
-        # filter parameters
+        # selection parameters
         self.minspectSNR = minspectSNR
         self.minspectSNR_nosdev = minspectSNR_nosdev
         self.maxsdev = maxsdev
         self.minnbtrimester = minnbtrimester
         self.maxperiodfactor = maxperiodfactor
+
+        # list of (nominal period, instantaneous period)
+        self.nom2inst_periods = nom2inst_periods
 
     def __repr__(self):
         return 'Dispersion curve between stations {}-{}'.format(self.station1.name,
@@ -188,10 +206,22 @@ class DispersionCurve:
         @type xc: L{CrossCorrelation}
         """
         centerperiods_and_alpha = zip(self.periods, [filter_alpha] * len(self.periods))
-        self._SNRs = xc.SNR(centerperiods_and_alpha=centerperiods_and_alpha,
-                            months=months, vmin=vmin, vmax=vmax,
-                            signal2noise_trail=signal2noise_trail,
-                            noise_window_size=noise_window_size)
+        SNRs = xc.SNR(centerperiods_and_alpha=centerperiods_and_alpha,
+                      months=months, vmin=vmin, vmax=vmax,
+                      signal2noise_trail=signal2noise_trail,
+                      noise_window_size=noise_window_size)
+
+        if self.nom2inst_periods:
+            # if a list of (nominal period, inst period) is provided
+            # we use it to re-interpolate SNRs
+            inst_period_func = interp1d(*zip(*self.nom2inst_periods))
+            SNRs = np.interp(x=self.periods,
+                             xp=inst_period_func(self.periods),
+                             fp=SNRs,
+                             left=np.nan,
+                             right=np.nan)
+
+        self._SNRs = SNRs
 
     def get_SNRs(self, **kwargs):
         if self._SNRs is None:
@@ -240,6 +270,7 @@ class DispersionCurve:
            - SNR >= *minspectSNR*
         3) for velocities NOT having a standard deviation associated:
            - SNR >= *minspectSNR_nosdev*
+        (SNRs equal to Nan are replaced with 0)
 
         @rtype: L{numpy.ndarray}, L{numpy.ndarray}
         """
@@ -261,12 +292,13 @@ class DispersionCurve:
         #    - SNR >= *minspectSNR*
 
         mask[has_sdev] &= (sdevs[has_sdev] <= self.maxsdev) & \
-                          (self._SNRs[has_sdev] >= self.minspectSNR)
+                          (np.nan_to_num(self._SNRs[has_sdev]) >= self.minspectSNR)
 
         # 3) for velocities NOT having a standard deviation associated:
         #    - SNR >= *minspectSNR_nosdev*
 
-        mask[~has_sdev] &= self._SNRs[~has_sdev] >= self.minspectSNR_nosdev
+        mask[~has_sdev] &= \
+            np.nan_to_num(self._SNRs[~has_sdev]) >= self.minspectSNR_nosdev
 
         # replacing velocities not passing the selection criteria with NaNs
         return np.where(mask, self.v, np.nan), sdevs
@@ -290,7 +322,7 @@ class DispersionCurve:
         Returns list of arrays of trimester velocities, or nan.
 
         Selection criteria:
-        - SNR of trimester velocity >= minspectSNR
+        - SNR of trimester velocity defined and >= minspectSNR
         - period <= pair distance * *maxperiodfactor*
 
         @rtype: list of L{numpy.ndarray}
@@ -304,7 +336,7 @@ class DispersionCurve:
             if SNRs is None:
                 raise Exception("Spectral SNRs not defined")
             # filtering criterion: SNR >= minspectSNR
-            mask = periodmask & (SNRs >= self.minspectSNR)
+            mask = periodmask & (np.nan_to_num(SNRs) >= self.minspectSNR)
             varrays.append(np.where(mask, vels, np.nan))
 
         return varrays

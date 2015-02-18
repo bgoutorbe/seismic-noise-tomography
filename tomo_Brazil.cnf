@@ -189,7 +189,7 @@ NOISE_WINDOW_SIZE = 500.0
 # periods and velocities of FTAN analysis: start, stop and step (JSON lists)
 
 RAWFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
-CLEANFTAN_PERIODS_STARTSTOPSTEP = [5.0, 30.1, 1.0]
+CLEANFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
 FTAN_VELOCITIES_STARTSTOPSTEP = [2.0, 5.51, 0.01]
 
 # default width parameter of the narrow Gaussian bandpass filters
@@ -205,6 +205,12 @@ FTAN_ALPHA = 20
 # the dispersion curve seeks to minimize
 STRENGTH_SMOOTHING = 1.0
 
+# replace nominal frequancy (i.e., center frequency of Gaussian filters)
+# with instantaneous frequency (i.e., dphi/dt(t=arrival time) with phi the
+# phase of the filtered analytic signal), in the FTAN and dispersion curves?
+# See Bensen et al. (2007) for technical details.
+
+USE_INSTANTANEOUS_FREQ = True
 
 # ============
 [tomography]

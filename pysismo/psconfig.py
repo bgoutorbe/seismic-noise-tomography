@@ -187,6 +187,12 @@ FTAN_VELOCITIES_STEP = FTAN_VELOCITIES_STARTSTOPSTEP[2]
 # the dispersion curve seeks to minimize
 STRENGTH_SMOOTHING = config.getfloat('FTAN', 'STRENGTH_SMOOTHING')
 
+# replace nominal frequancy (i.e., center frequency of Gaussian filters)
+# with instantaneous frequency (i.e., dphi/dt(t=arrival time) with phi the
+# phase of the filtered analytic signal), in the FTAN and dispersion curves?
+# See Bensen et al. (2007) for technical details.
+USE_INSTANTANEOUS_FREQ = config.getboolean('FTAN', 'USE_INSTANTANEOUS_FREQ')
+
 # --------------------------------
 # Tomographic inversion parameters
 # --------------------------------

@@ -39,7 +39,7 @@ from psconfig import (
     CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS, CROSSCORR_TMAX, PERIOD_RESAMPLE,
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA, STRENGTH_SMOOTHING,
-    BBOX_LARGE, BBOX_SMALL)
+    USE_INSTANTANEOUS_FREQ, BBOX_LARGE, BBOX_SMALL)
 
 # ========================
 # Constants and parameters
@@ -710,7 +710,8 @@ class CrossCorrelation:
             fig.show()
 
     def FTAN(self, whiten=False, phase_corr=None, months=None, vgarray_init=None,
-             optimize_curve=None, strength_smoothing=STRENGTH_SMOOTHING):
+             optimize_curve=None, strength_smoothing=STRENGTH_SMOOTHING,
+             use_inst_freq=USE_INSTANTANEOUS_FREQ, vg_at_nominal_freq=None):
         """
         Frequency-time analysis of a cross-correlation function.
 
@@ -737,6 +738,11 @@ class CrossCorrelation:
           corr provided), False for the clean FTAN (phase corr provided)
         - set the strength of the smoothing term of the dispersion curve
           in *strength_smoothing*
+        - set *use_inst_freq*=True to replace the nominal frequency with
+          the instantaneous frequency in the dispersion curve.
+        - if an array is provided in *vg_at_nominal_freq*, then it is filled
+          with the vg curve BEFORE the nominal freqs are replaced with
+          instantaneous freqs
 
         Returns (1) the amplitude matrix A(T0,v), (2) the phase matrix
         phi(T0,v) (that is, the amplitude and phase function of velocity
@@ -744,7 +750,7 @@ class CrossCorrelation:
         group velocity disperion curve extracted from the amplitude
         matrix.
 
-        FTAN periods in variable *FTAN_PERIODS*
+        FTAN periods in variable *RAWFTAN_PERIODS* and *CLEANFTAN_PERIODS*
         FTAN velocities in variable *FTAN_VELOCITIES*
 
         See. e.g., Levshin & Ritzwoller, "Automated detection,
@@ -757,6 +763,7 @@ class CrossCorrelation:
         @type phase_corr: L{scipy.interpolate.interpolate.interp1d}
         @type months: list of (L{MonthYear} or (int, int))
         @type vgarray_init: L{numpy.ndarray}
+        @type vg_at_nominal_freq: L{numpy.ndarray}
         @rtype: (L{numpy.ndarray}, L{numpy.ndarray}, L{DispersionCurve})
         """
         # no phase correction given <=> raw FTAN
@@ -806,11 +813,85 @@ class CrossCorrelation:
                                     varray_init=vgarray_init,
                                     optimizecurve=optimize_curve,
                                     strength_smoothing=strength_smoothing)
+        if not vg_at_nominal_freq is None:
+            # filling array with group velocities before replacing
+            # nominal freqs with instantaneous freqs
+            vg_at_nominal_freq[...] = vgarray
+
+        # if *use_inst_freq*=True, we replace nominal freq with instantaneous
+        # freq, i.e., we consider that ampl[iT, :], phase[iT, :] and vgarray[iT]
+        # actually correspond to period 2.pi/|dphi/dt|(t=arrival time), with
+        # phi(.) = phase[iT, :]  and arrival time = dist / vgarray[iT],
+        # and we re-interpolate them along periods of *ftan_periods*
+
+        nom2inst_periods = None
+        if use_inst_freq:
+            # array of arrival times
+            tarray = xcout.dist() / vgarray
+            # indices of arrival times in time array
+            it = xcout.timearray.searchsorted(tarray)
+            it = np.minimum(len(xcout.timearray) - 1, np.maximum(1, it))
+            # instantaneous freq: omega = |dphi/dt|(t=arrival time),
+            # with phi = phase of FTAN
+            dt = xcout.timearray[it] - xcout.timearray[it-1]
+            nT = phase.shape[0]
+            omega = np.abs((phase[range(nT), it] - phase[range(nT), it-1]) / dt)
+            # -> instantaneous period = 2.pi/omega
+            inst_periods = 2.0 * np.pi / omega
+            assert isinstance(inst_periods, np.ndarray)  # just to enable autocompletion
+
+            # discarding instantaneous periods more than 2 sec and 25% different 
+            # than nominal
+            delta_periods = np.abs(inst_periods - ftan_periods)
+            mask = delta_periods > np.maximum(2.0, 0.25 * ftan_periods)
+            inst_periods[mask] = np.nan
+
+            # filling holes by linear interpolation
+            masknan = np.isnan(inst_periods)
+            if masknan.any():
+                inst_periods[masknan] = np.interp(x=masknan.nonzero()[0],
+                                                  xp=(~masknan).nonzero()[0],
+                                                  fp=inst_periods[~masknan])
+
+            # looking for the increasing curve that best-fits
+            # calculated instantaneous periods
+            def fun(periods):
+                # misfit wrt calculated instantaneous periods
+                return np.sum((periods - inst_periods)**2)
+            # constraints = positive increments
+            constraints = [{'type': 'ineq', 'fun': lambda p, i=i: p[i+1] - p[i]}
+                           for i in range(len(inst_periods) - 1)]
+
+            res = minimize(fun, x0=ftan_periods, method='SLSQP', constraints=constraints)
+            inst_periods = res['x']
+
+            # re-interpolating amplitude, phase and dispersion curve
+            # along periods of array *ftan_periods*
+            vgarray = np.interp(x=ftan_periods,
+                                xp=inst_periods,
+                                fp=vgarray,
+                                left=np.nan,
+                                right=np.nan)
+            for iv in range(len(FTAN_VELOCITIES)):
+                ampl_resampled[:, iv] = np.interp(x=ftan_periods,
+                                                  xp=inst_periods,
+                                                  fp=ampl_resampled[:, iv],
+                                                  left=np.nan,
+                                                  right=np.nan)
+                phase_resampled[:, iv] = np.interp(x=ftan_periods,
+                                                   xp=inst_periods,
+                                                   fp=phase_resampled[:, iv],
+                                                   left=np.nan,
+                                                   right=np.nan)
+
+            # list of (nominal period, inst period)
+            nom2inst_periods = zip(ftan_periods, inst_periods)
 
         vgcurve = pstomo.DispersionCurve(periods=ftan_periods,
                                          v=vgarray,
                                          station1=self.station1,
-                                         station2=self.station2)
+                                         station2=self.station2,
+                                         nom2inst_periods=nom2inst_periods)
 
         return ampl_resampled, phase_resampled, vgcurve
 
@@ -819,7 +900,8 @@ class CrossCorrelation:
                       signal2noise_trail=SIGNAL2NOISE_TRAIL,
                       noise_window_size=NOISE_WINDOW_SIZE,
                       optimize_curve=None,
-                      strength_smoothing=STRENGTH_SMOOTHING):
+                      strength_smoothing=STRENGTH_SMOOTHING,
+                      use_inst_freq=USE_INSTANTANEOUS_FREQ):
         """
         Frequency-time analysis including phase-matched filter and
         seasonal variability:
@@ -874,20 +956,26 @@ class CrossCorrelation:
             xc = xc.whiten(inplace=False)
 
         # raw FTAN (no need to whiten any more)
+        rawvg_init = np.zeros_like(RAWFTAN_PERIODS)
         rawampl, _, rawvg = xc.FTAN(whiten=False,
                                     months=months,
                                     optimize_curve=optimize_curve,
-                                    strength_smoothing=strength_smoothing)
+                                    strength_smoothing=strength_smoothing,
+                                    use_inst_freq=use_inst_freq,
+                                    vg_at_nominal_freq=rawvg_init)
 
         # phase function from raw vg curve
         phase_corr = xc.phase_func(vgcurve=rawvg)
 
         # clean FTAN
+        cleanvg_init = np.zeros_like(CLEANFTAN_PERIODS)
         cleanampl, _, cleanvg = xc.FTAN(whiten=False,
                                         phase_corr=phase_corr,
                                         months=months,
                                         optimize_curve=optimize_curve,
-                                        strength_smoothing=strength_smoothing)
+                                        strength_smoothing=strength_smoothing,
+                                        use_inst_freq=use_inst_freq,
+                                        vg_at_nominal_freq=cleanvg_init)
 
         # adding spectral SNRs associated with the periods of the
         # clean vg curve
@@ -918,18 +1006,20 @@ class CrossCorrelation:
                 # extracted from all data as initial guess
                 _, _, rawvg_trimester = xc.FTAN(whiten=False,
                                                 months=months_of_xc,
-                                                vgarray_init=rawvg.v,
+                                                vgarray_init=rawvg_init,
                                                 optimize_curve=optimize_curve,
-                                                strength_smoothing=strength_smoothing)
+                                                strength_smoothing=strength_smoothing,
+                                                use_inst_freq=use_inst_freq)
 
                 phase_corr_trimester = xc.phase_func(vgcurve=rawvg_trimester)
 
                 _, _, cleanvg_trimester = xc.FTAN(whiten=False,
                                                   phase_corr=phase_corr_trimester,
                                                   months=months_of_xc,
-                                                  vgarray_init=cleanvg.v,
+                                                  vgarray_init=cleanvg_init,
                                                   optimize_curve=optimize_curve,
-                                                  strength_smoothing=strength_smoothing)
+                                                  strength_smoothing=strength_smoothing,
+                                                  use_inst_freq=use_inst_freq)
 
                 # adding spectral SNRs associated with the periods of the
                 # clean trimester vg curve
@@ -960,17 +1050,18 @@ class CrossCorrelation:
         """
         freqarray = 1.0 / vgcurve.periods[::-1]
         vgarray = vgcurve.v[::-1]
+        mask = ~np.isnan(vgarray)
 
         # array k[f]
-        k = np.zeros_like(freqarray)
+        k = np.zeros_like(freqarray[mask])
         k[0] = 0.0
-        k[1:] = 2 * np.pi * integrate.cumtrapz(y=1.0 / vgarray, x=freqarray)
+        k[1:] = 2 * np.pi * integrate.cumtrapz(y=1.0 / vgarray[mask], x=freqarray[mask])
 
         # array phi[f]
         phi = k * self.dist()
 
         # phase function of f
-        return interp1d(x=freqarray, y=phi)
+        return interp1d(x=freqarray[mask], y=phi)
 
     def plot_FTAN(self, rawampl=None, rawvg=None, cleanampl=None, cleanvg=None,
                   whiten=False, months=None, showplot=True, normalize_ampl=True,
@@ -1086,16 +1177,23 @@ class CrossCorrelation:
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
         m = np.log10(rawampl.transpose() ** 2) if logscale else rawampl.transpose()
         ax.imshow(m, aspect='auto', origin='lower', extent=extent)
-        ax.set_xlabel("period (sec)")
+
+        # Period is instantaneous iif a list of (nominal period, inst period)
+        # is associated with dispersion curve
+        periodlabel = 'Instantaneous period (sec)' if rawvg.nom2inst_periods \
+            else 'Nominal period (sec)'
+        ax.set_xlabel(periodlabel)
         ax.set_ylabel("Velocity (km/sec)")
         # saving limits
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
         # raw & clean vg curves
-        ax.plot(rawvg.periods, rawvg.v, color='blue', linestyle='dashed',
-                lw=2, label='raw FTAN')
-        ax.plot(cleanvg.periods, cleanvg.v, color='black',
-                lw=2, label='clean FTAN')
+        fmt = '--' if (~np.isnan(rawvg.v)).sum() > 1 else 'o'
+        ax.plot(rawvg.periods, rawvg.v, fmt, color='blue',
+                lw=2, label='raw disp curve')
+        fmt = '-' if (~np.isnan(cleanvg.v)).sum() > 1 else 'o'
+        ax.plot(cleanvg.periods, cleanvg.v, fmt, color='black',
+                lw=2, label='clean disp curve')
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
         ax.plot([cutoffperiod, cutoffperiod], ylim, color='grey')
@@ -1110,7 +1208,13 @@ class CrossCorrelation:
             tl.set_color('green')
 
         # setting legend and initial extent
-        ax.legend()
+        ax.legend(fontsize=11, loc='upper right')
+        x = (xlim[0] + xlim[1]) / 2.0
+        y = ylim[0] + 0.05 * (ylim[1] - ylim[0])
+        ax.text(x, y, "Raw FTAN", fontsize=12,
+                bbox={'color': 'k', 'facecolor': 'white', 'lw': 0.5},
+                horizontalalignment='center',
+                verticalalignment='center')
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
 
@@ -1124,7 +1228,11 @@ class CrossCorrelation:
                   min(FTAN_VELOCITIES), max(FTAN_VELOCITIES))
         m = np.log10(cleanampl.transpose() ** 2) if logscale else cleanampl.transpose()
         ax.imshow(m, aspect='auto', origin='lower', extent=extent)
-        ax.set_xlabel("period (sec)")
+        # Period is instantaneous iif a list of (nominal period, inst period)
+        # is associated with dispersion curve
+        periodlabel = 'Instantaneous period (sec)' if cleanvg.nom2inst_periods \
+            else 'Nominal period (sec)'
+        ax.set_xlabel(periodlabel)
         ax.set_ylabel("Velocity (km/sec)")
         # saving limits
         xlim = ax.get_xlim()
@@ -1132,14 +1240,22 @@ class CrossCorrelation:
         # trimester vg curves
         ntrimester = len(cleanvg.v_trimesters)
         for i, vg_trimester in enumerate(cleanvg.filtered_trimester_vels()):
-            label = '{} trimester FTANs'.format(ntrimester) if i == 0 else None
+            label = '3-month disp curves (n={})'.format(ntrimester) if i == 0 else None
             ax.plot(cleanvg.periods, vg_trimester, color='gray', label=label)
 
         # clean vg curve + error bars
         vels, sdevs = cleanvg.filtered_vels_sdevs()
-        ax.errorbar(x=cleanvg.periods, y=vels, yerr=sdevs, color='black',
-                    lw=2, label='clean FTAN')
-        ax.legend()
+        fmt = '-' if (~np.isnan(vels)).sum() > 1 else 'o'
+        ax.errorbar(x=cleanvg.periods, y=vels, yerr=sdevs, fmt=fmt, color='black',
+                    lw=2, label='clean disp curve')
+        # legend
+        ax.legend(fontsize=11, loc='upper right')
+        x = (xlim[0] + xlim[1]) / 2.0
+        y = ylim[0] + 0.05 * (ylim[1] - ylim[0])
+        ax.text(x, y, "Clean FTAN", fontsize=12,
+                bbox={'color': 'k', 'facecolor': 'white', 'lw': 0.5},
+                horizontalalignment='center',
+                verticalalignment='center')
         # plotting cut-off period
         cutoffperiod = self.dist() / 12.0
         ax.plot([cutoffperiod, cutoffperiod], ylim, color='grey')
@@ -2295,6 +2411,9 @@ def optimize_dispcurve(amplmatrix, velocities, vg0, periodmask=None,
     @type velocities: L{numpy.ndarray}
     @rtype: L{numpy.ndarray}, float
     """
+    if np.any(np.isnan(vg0)):
+        raise Exception("Init velocity array cannot contain NaN")
+
     nperiods = amplmatrix.shape[0]
 
     # function that returns the amplitude curve
