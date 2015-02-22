@@ -17,3 +17,11 @@ class NoPAZFound(Exception):
     """
     def __init__(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
+
+
+class CannotPerformTomoInversion(Exception):
+    """
+    Cannot perform tomographic inversion (e.g., because no data is available)
+    """
+    def __init__(self, *args, **kwargs):
+        Exception.__init__(self, *args, **kwargs)

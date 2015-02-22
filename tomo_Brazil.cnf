@@ -22,7 +22,7 @@
 #
 # Module pysismo.psconfig takes care of reading the configuration file and
 # defining the global parameters. If only one configuration file (*.cnf) is
-# found in the current folder, then psconfig reads it automatically. If 
+# found in the current folder, then psconfig reads it silently. If
 # several *.cnf files are found, then you'll be prompted to select one of
 # them.
 #

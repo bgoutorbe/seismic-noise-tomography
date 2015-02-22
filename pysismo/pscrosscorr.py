@@ -711,7 +711,8 @@ class CrossCorrelation:
 
     def FTAN(self, whiten=False, phase_corr=None, months=None, vgarray_init=None,
              optimize_curve=None, strength_smoothing=STRENGTH_SMOOTHING,
-             use_inst_freq=USE_INSTANTANEOUS_FREQ, vg_at_nominal_freq=None):
+             use_inst_freq=USE_INSTANTANEOUS_FREQ, vg_at_nominal_freq=None,
+             debug=False):
         """
         Frequency-time analysis of a cross-correlation function.
 
@@ -840,11 +841,32 @@ class CrossCorrelation:
             inst_periods = 2.0 * np.pi / omega
             assert isinstance(inst_periods, np.ndarray)  # just to enable autocompletion
 
-            # discarding instantaneous periods more than 2 sec and 25% different 
-            # than nominal
-            delta_periods = np.abs(inst_periods - ftan_periods)
-            mask = delta_periods > np.maximum(2.0, 0.25 * ftan_periods)
-            inst_periods[mask] = np.nan
+            if debug:
+                plt.plot(ftan_periods, inst_periods)
+
+            # removing outliers (inst periods very different from
+            # nominal or too close to sampling step)
+            reldiffs = np.abs((inst_periods - ftan_periods) / ftan_periods)
+            discard = (reldiffs > 0.8) | (inst_periods < 1.2 * self._get_xcorr_dt())
+            inst_periods = np.where(discard, np.nan, inst_periods)
+
+            # despiking curve of inst freqs (by removing values too
+            # different from the 7-point running median)
+            n = np.size(inst_periods)
+            median_periods = []
+            for i in range(n):
+                sl = slice(max(i - 3, 0), min(i + 4, n))
+                mask = ~np.isnan(inst_periods[sl])
+                if np.any(mask):
+                    med = np.median(inst_periods[sl][mask])
+                    median_periods.append(med)
+                else:
+                    median_periods.append(np.nan)
+            reldiffs = np.abs((inst_periods - np.array(median_periods)) / inst_periods)
+            mask = ~np.isnan(reldiffs)
+            inst_periods[mask] = np.where(reldiffs[mask] > 0.5,
+                                          np.nan,
+                                          inst_periods[mask])
 
             # filling holes by linear interpolation
             masknan = np.isnan(inst_periods)
@@ -865,8 +887,13 @@ class CrossCorrelation:
             res = minimize(fun, x0=ftan_periods, method='SLSQP', constraints=constraints)
             inst_periods = res['x']
 
+            if debug:
+                plt.plot(ftan_periods, inst_periods)
+                plt.show()
+
             # re-interpolating amplitude, phase and dispersion curve
-            # along periods of array *ftan_periods*
+            # along periods of array *ftan_periods* -- assuming that
+            # their are currently evaluated along *inst_periods*
             vgarray = np.interp(x=ftan_periods,
                                 xp=inst_periods,
                                 fp=vgarray,
@@ -901,7 +928,8 @@ class CrossCorrelation:
                       noise_window_size=NOISE_WINDOW_SIZE,
                       optimize_curve=None,
                       strength_smoothing=STRENGTH_SMOOTHING,
-                      use_inst_freq=USE_INSTANTANEOUS_FREQ):
+                      use_inst_freq=USE_INSTANTANEOUS_FREQ,
+                      **kwargs):
         """
         Frequency-time analysis including phase-matched filter and
         seasonal variability:
@@ -935,6 +963,7 @@ class CrossCorrelation:
           clean FTAN
         - set the strength of the smoothing term of the dispersion curve
           in *strength_smoothing*
+        - other *kwargs* sent to CrossCorrelation.FTAN()
 
         Returns raw ampl, raw vg, cleaned ampl, cleaned vg.
 
@@ -962,7 +991,8 @@ class CrossCorrelation:
                                     optimize_curve=optimize_curve,
                                     strength_smoothing=strength_smoothing,
                                     use_inst_freq=use_inst_freq,
-                                    vg_at_nominal_freq=rawvg_init)
+                                    vg_at_nominal_freq=rawvg_init,
+                                    **kwargs)
 
         # phase function from raw vg curve
         phase_corr = xc.phase_func(vgcurve=rawvg)
@@ -975,7 +1005,8 @@ class CrossCorrelation:
                                         optimize_curve=optimize_curve,
                                         strength_smoothing=strength_smoothing,
                                         use_inst_freq=use_inst_freq,
-                                        vg_at_nominal_freq=cleanvg_init)
+                                        vg_at_nominal_freq=cleanvg_init,
+                                        **kwargs)
 
         # adding spectral SNRs associated with the periods of the
         # clean vg curve
@@ -1009,7 +1040,8 @@ class CrossCorrelation:
                                                 vgarray_init=rawvg_init,
                                                 optimize_curve=optimize_curve,
                                                 strength_smoothing=strength_smoothing,
-                                                use_inst_freq=use_inst_freq)
+                                                use_inst_freq=use_inst_freq,
+                                                **kwargs)
 
                 phase_corr_trimester = xc.phase_func(vgcurve=rawvg_trimester)
 
@@ -1019,7 +1051,8 @@ class CrossCorrelation:
                                                   vgarray_init=cleanvg_init,
                                                   optimize_curve=optimize_curve,
                                                   strength_smoothing=strength_smoothing,
-                                                  use_inst_freq=use_inst_freq)
+                                                  use_inst_freq=use_inst_freq,
+                                                  **kwargs)
 
                 # adding spectral SNRs associated with the periods of the
                 # clean trimester vg curve

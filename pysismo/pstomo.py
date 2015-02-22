@@ -2,7 +2,7 @@
 Module related to seismic tomography
 """
 
-import psutils
+import pserrors, psutils
 import itertools as it
 import numpy as np
 from scipy.optimize import curve_fit
@@ -665,6 +665,11 @@ class VelocityMap:
         # associated interstation distances
         self.disp_curves = [c for c in dispersion_curves
                             if not np.isnan(c.filtered_vel_sdev_SNR(self.period)[0])]
+
+        if not self.disp_curves:
+            s = "No valid velocity at selected period ({} sec)"
+            raise pserrors.CannotPerformTomoInversion(s.format(period))
+
         dists = np.array([c.dist() for c in self.disp_curves])
 
         # getting (non nan) velocities and std devs at period
@@ -673,6 +678,10 @@ class VelocityMap:
         vels = np.array(vels)
         sigmav = np.array(sigmav)
         sigmav_isnan = np.isnan(sigmav)
+
+        if np.all(sigmav_isnan):
+            s = "No valid std deviation at selected period ({} sec)"
+            raise pserrors.CannotPerformTomoInversion(s.format(period))
 
         # If the resolution in the velocities space is dv,
         # it means that a velocity v is actually anything between

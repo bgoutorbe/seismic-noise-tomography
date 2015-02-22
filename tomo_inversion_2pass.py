@@ -70,6 +70,7 @@ as a dict: {period: instance of pstomo.VelocityMap}.
 """
 
 from pysismo import pstomo, psutils
+from pysismo.pserrors import CannotPerformTomoInversion
 import os
 import shutil
 import glob
@@ -141,6 +142,8 @@ for pickle_file in pickle_files:
     for period in PERIODS:
         print "\nDoing period = {} s".format(period)
 
+        periodfigs = []
+
         # 2-pass inversion
         skippairs = []
         for passnb in (0, 1):
@@ -166,17 +169,24 @@ for pickle_file in pickle_files:
             # (See doc of VelocityMap for a complete description of the input
             # arguments.)
 
-            v = pstomo.VelocityMap(dispersion_curves=curves,
-                                   period=period,
-                                   skippairs=skippairs,
-                                   verbose=False,
-                                   lonstep=GRID_STEPS[passnb],
-                                   latstep=GRID_STEPS[passnb],
-                                   minspectSNR=MINPECTSNRS[passnb],
-                                   correlation_length=CORR_LENGTHS[passnb],
-                                   alpha=ALPHAS[passnb],
-                                   beta=BETAS[passnb],
-                                   lambda_=LAMBDAS[passnb])
+            try:
+                v = pstomo.VelocityMap(dispersion_curves=curves,
+                                       period=period,
+                                       skippairs=skippairs,
+                                       verbose=False,
+                                       lonstep=GRID_STEPS[passnb],
+                                       latstep=GRID_STEPS[passnb],
+                                       minspectSNR=MINPECTSNRS[passnb],
+                                       correlation_length=CORR_LENGTHS[passnb],
+                                       alpha=ALPHAS[passnb],
+                                       beta=BETAS[passnb],
+                                       lambda_=LAMBDAS[passnb])
+            except CannotPerformTomoInversion as err:
+                print "Cannot perform tomo inversion: {}".format(err)
+                for fig in periodfigs:
+                    plt.close(fig)
+                # next period
+                break
 
             if passnb == 0:
                 # pairs whose residual is > 3 times the std dev of
@@ -215,46 +225,58 @@ for pickle_file in pickle_files:
             fig = v.plot(title=title, showplot=False,
                          highlight_residuals_gt=maxresidual)
 
-            # exporting plot to pdf
-            pdf.savefig(fig)
-            plt.close()
+            # appending fig to figures of period
+            periodfigs.append(fig)
 
-        # let's compare the 2-pass tomography with a one-pass tomography
-        s = ("One-pass tomography: grid step = {}, min SNR = {}, "
-             "corr. length = {} km, alpha = {}, beta = {}, lambda = {}")
-        print s.format(GRID_STEPS[1], MINPECTSNRS[1], CORR_LENGTHS[1],
-                       ALPHAS[1], BETAS[1], LAMBDAS[1])
+        else:
+            # if we did not break from loop:
+            # let's compare the 2-pass tomography with a one-pass tomography
+            s = ("One-pass tomography: grid step = {}, min SNR = {}, "
+                 "corr. length = {} km, alpha = {}, beta = {}, lambda = {}")
+            print s.format(GRID_STEPS[1], MINPECTSNRS[1], CORR_LENGTHS[1],
+                           ALPHAS[1], BETAS[1], LAMBDAS[1])
 
-        # tomographic inversion
-        v = pstomo.VelocityMap(dispersion_curves=curves,
-                               period=period,
-                               verbose=False,
-                               lonstep=GRID_STEPS[1],
-                               latstep=GRID_STEPS[1],
-                               minspectSNR=MINPECTSNRS[1],
-                               correlation_length=CORR_LENGTHS[1],
-                               alpha=ALPHAS[1],
-                               beta=BETAS[1],
-                               lambda_=LAMBDAS[1])
+            # tomographic inversion
+            try:
+                v = pstomo.VelocityMap(dispersion_curves=curves,
+                                       period=period,
+                                       verbose=False,
+                                       lonstep=GRID_STEPS[1],
+                                       latstep=GRID_STEPS[1],
+                                       minspectSNR=MINPECTSNRS[1],
+                                       correlation_length=CORR_LENGTHS[1],
+                                       alpha=ALPHAS[1],
+                                       beta=BETAS[1],
+                                       lambda_=LAMBDAS[1])
+            except CannotPerformTomoInversion as err:
+                print "Cannot perform tomo inversion: {}".format(err)
+                for fig in periodfigs:
+                    plt.close(fig)
+                # next period
+                continue
 
-        # figure
-        title = ("Period = {0} s, one pass, grid {1} x {1} deg, "
-                 "min SNR = {2}, corr. length = {3} km, alpha = {4}, "
-                 "beta = {5}, lambda = {6} ({7} paths)")
-        title = title.format(period, GRID_STEPS[1], MINPECTSNRS[1],
-                             CORR_LENGTHS[1], ALPHAS[1],
-                             BETAS[1], LAMBDAS[1], len(v.paths))
-        fig = v.plot(title=title, showplot=False)
+            # figure
+            title = ("Period = {0} s, one pass, grid {1} x {1} deg, "
+                     "min SNR = {2}, corr. length = {3} km, alpha = {4}, "
+                     "beta = {5}, lambda = {6} ({7} paths)")
+            title = title.format(period, GRID_STEPS[1], MINPECTSNRS[1],
+                                 CORR_LENGTHS[1], ALPHAS[1],
+                                 BETAS[1], LAMBDAS[1], len(v.paths))
+            fig = v.plot(title=title, showplot=False)
 
-        # exporting plot in pdf
-        pdf.savefig(fig)
-        plt.close()
+            # appending fig to figures of period
+            periodfigs.append(fig)
+
+            # exporting figs to pdf
+            for fig in periodfigs:
+                pdf.savefig(fig)
+                plt.close(fig)
 
     # closing pdf file
+    pagenbs = range(pdf.get_pagecount())
     pdf.close()
 
     # merging pages of pdf with similar period
-    pagenbs = range(len(PERIODS) * 3)  # 3 figures per period (two-pass + one-pass)
     key = lambda pagenb: int(pagenb / 3)  # grouping pages 0-1-2, then 3-4-5 etc.
 
     pagesgroups = psutils.groupbykey(pagenbs, key=key)

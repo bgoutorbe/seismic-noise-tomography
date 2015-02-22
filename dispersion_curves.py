@@ -14,12 +14,18 @@ Geophys. J. Int. (2007).
 In short, the envelope's amplitude of the (analytic representation
 of the) cross-correlation is calculated and displayed after applying
 narrow bandpass filters: this gives a 2D image, in which the x-axis
-is the filter's center period and the y-axis is time (equivalent to
-velocity). Tracking the time (equivalent to velocity) at which the
-the amplitude reaches its maximum for each period gives the dispersion
-curve, i.e., the group velocity function of period. This 'raw'
-dispersion curve is used to set up a phase-matched filter, re-apply
-a 'clean' FTAN and extract a 'clean' dispersion curve.
+is the nominal period (filter's center period) or the instanteneous
+period and the  y-axis is time (equivalent to velocity). Tracking
+the time (equivalent to velocity) at which the the amplitude reaches
+its maximum for each  period gives the dispersion curve, i.e., the
+group velocity function  of period. This 'raw' dispersion curve is
+used to set up a phase-matched filter, re-apply a 'clean' FTAN and
+extract a 'clean' dispersion curve.
+
+The nominal frequency (or period) -- i.e., the filter's center
+frequency -- is replaced with the instantaneous frequency
+if parameter *USE_INSTANTANEOUS_FREQ* is set to True, or if
+use_inst_freq=True is explicitely passed to function xc.FTANs().
 
 This script takes as input one or several binary files containing a
 set of cross-correlations (previously calculated with, e.g., script
@@ -88,6 +94,8 @@ for pickle_file in pickle_files:
     # that the max amplitude = 1 at each period (default is True)
     # Set logscale=True to plot log(amplitude^2) instead of amplitude
     # (default is True)
+    # Set use_inst_freq=True to replace nominal freq with instantaneous
+    # freq (default is given by parameter *USE_INSTANTANEOUS_FREQ*)
     #
     # See other options in the docstring of the function.
 
