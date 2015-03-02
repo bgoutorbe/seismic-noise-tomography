@@ -447,15 +447,18 @@ for day in daylist:
 
 # exporting cross-correlations
 if not CALC_SPECTRA:
-    # exporting to binary and ascii files
-    xc.export(outprefix=OUTFILESPATH, stations=stations, verbose=True)
+    if xc.pairs():
+        # exporting to binary and ascii files
+        xc.export(outprefix=OUTFILESPATH, stations=stations, verbose=True)
 
-    # exporting to png file
-    print "Exporting cross-correlations to file: {}.png".format(OUTFILESPATH)
-    # optimizing time-scale: max time = max distance / vmin (vmin = 2.5 km/s)
-    maxdist = max([xc[s1][s2].dist() for s1, s2 in xc.pairs()])
-    maxt = min(CROSSCORR_TMAX, maxdist / 2.5)
-    xc.plot(xlim=(-maxt, maxt), outfile=OUTFILESPATH + '.png', showplot=False)
+        # exporting to png file
+        print "Exporting cross-correlations to file: {}.png".format(OUTFILESPATH)
+        # optimizing time-scale: max time = max distance / vmin (vmin = 2.5 km/s)
+        maxdist = max([xc[s1][s2].dist() for s1, s2 in xc.pairs()])
+        maxt = min(CROSSCORR_TMAX, maxdist / 2.5)
+        xc.plot(xlim=(-maxt, maxt), outfile=OUTFILESPATH + '.png', showplot=False)
+    else:
+        print "No cross-correlation could be calculated: nothing to export!"
 
 # plotting spectra
 if CALC_SPECTRA:

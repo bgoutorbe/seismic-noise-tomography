@@ -308,8 +308,12 @@ def get_stationxml_inventories(stationxml_dir=STATIONXML_DIR, verbose=False):
     # list of *.xml files
     flist = glob.glob(pathname=os.path.join(stationxml_dir, "*.xml"))
 
-    if flist and verbose:
-        print "Reading inventory in StationXML file:",
+    if verbose:
+        if flist:
+            print "Reading inventory in StationXML file:",
+        else:
+            s = u"Could not find any StationXML file (*.xml) in dir: {}!"
+            print s.format(stationxml_dir)
 
     for f in flist:
         if verbose:
@@ -337,8 +341,12 @@ def get_dataless_inventories(dataless_dir=DATALESS_DIR, verbose=False):
     # list of *.dataless files
     flist = glob.glob(pathname=os.path.join(dataless_dir, "*.dataless"))
 
-    if flist and verbose:
-        print "Reading inventory in dataless seed file:",
+    if verbose:
+        if flist:
+            print "Reading inventory in dataless seed file:",
+        else:
+            s = u"Could not find any dalatess seed file (*.dataless) in dir: {}!"
+            print s.format(dataless_dir)
 
     for f in flist:
         if verbose:
