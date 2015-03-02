@@ -8,7 +8,9 @@ import numpy as np
 from numpy.lib.stride_tricks import as_strided
 from numpy.fft import rfft, irfft, rfftfreq
 import os
+import glob
 import shutil
+import pickle
 import shapefile
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
@@ -130,6 +132,66 @@ def clean_stream(stream, skiplocs=CROSSCORR_SKIPLOCS, verbose=False):
         for tr in [tr for tr in stream if tr.stats.location != select_loc]:
             stream.remove(tr)
 
+
+def plot_nb_pairs():
+    """
+    Plot the total nb of group velocity measurements and the remaining
+    nb of measurements (after applying selection criteria), function of
+    period, for the selected dispersion curves.
+    """
+    # parsing some parameters of configuration file
+    from pysismo.psconfig import (FTAN_DIR, MINSPECTSNR, MINSPECTSNR_NOSDEV,
+                                  MINNBTRIMESTER, MAXSDEV)
+
+    # selecting dispersion curves
+    flist = sorted(glob.glob(os.path.join(FTAN_DIR, 'FTAN*.pickle*')))
+    print 'Select file(s) containing dispersion curves to process:'
+    print '\n'.join('{} - {}'.format(i, os.path.basename(f))
+                    for i, f in enumerate(flist))
+    res = raw_input('\n')
+    pickle_files = [flist[int(i)] for i in res.split()]
+
+    for curves_file in pickle_files:
+        # loading dispersion curves of file
+        print "Loading file: " + curves_file
+        f = open(curves_file, 'rb')
+        curves = pickle.load(f)
+        f.close()
+        periods = curves[0].periods
+
+        # updating selection parameters of dispersion curves
+        for c in curves:
+            c.update_parameters(minspectSNR=MINSPECTSNR,
+                                minspectSNR_nosdev=MINSPECTSNR_NOSDEV,
+                                minnbtrimester=MINNBTRIMESTER,
+                                maxsdev=MAXSDEV)
+
+        # list of arrays of filtered velocities
+        list_filtered_vels = [c.filtered_vels_sdevs()[0] for c in curves]
+
+        n_init = []
+        n_final = []
+
+        for period in periods:
+            iperiods = [c.get_period_index(period) for c in curves]
+
+            # total nb of mesurements
+            vels = np.array([c.v[i] for c, i in zip(curves, iperiods)])
+            n_init.append(np.count_nonzero(~np.isnan(vels)))
+
+            # remaining nb of measurements after selection criteria
+            vels = np.array([v[i] for v, i in zip(list_filtered_vels, iperiods)])
+            n_final.append(np.count_nonzero(~np.isnan(vels)))
+
+        lines = plt.plot(periods, n_init, label=os.path.basename(curves_file))
+        plt.plot(periods, n_final, color=lines[0].get_color())
+
+    # finalizing and showing plot
+    plt.xlabel('Period (s)')
+    plt.ylabel('Nb of measurements')
+    plt.legend(fontsize=11, loc='best')
+    plt.grid(True)
+    plt.show()
 
 def resample(trace, dt_resample):
     """
