@@ -39,7 +39,8 @@ from psconfig import (
     CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS, CROSSCORR_TMAX, PERIOD_RESAMPLE,
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA, STRENGTH_SMOOTHING,
-    USE_INSTANTANEOUS_FREQ, BBOX_LARGE, BBOX_SMALL)
+    USE_INSTANTANEOUS_FREQ, MAX_RELDIFF_INST_NOMINAL_PERIOD, MIN_INST_PERIOD,
+    HALFWINDOW_MEDIAN_PERIOD, MAX_RELDIFF_INST_MEDIAN_PERIOD, BBOX_LARGE, BBOX_SMALL)
 
 # ========================
 # Constants and parameters
@@ -844,18 +845,18 @@ class CrossCorrelation:
             if debug:
                 plt.plot(ftan_periods, inst_periods)
 
-            # removing outliers (inst periods very different from
-            # nominal or too close to sampling step)
+            # removing outliers (inst periods too small or too different from nominal)
             reldiffs = np.abs((inst_periods - ftan_periods) / ftan_periods)
-            discard = (reldiffs > 0.8) | (inst_periods < 1.2 * self._get_xcorr_dt())
+            discard = (inst_periods < MIN_INST_PERIOD) | \
+                      (reldiffs > MAX_RELDIFF_INST_NOMINAL_PERIOD)
             inst_periods = np.where(discard, np.nan, inst_periods)
-
             # despiking curve of inst freqs (by removing values too
-            # different from the 7-point running median)
+            # different from the running median)
             n = np.size(inst_periods)
             median_periods = []
             for i in range(n):
-                sl = slice(max(i - 3, 0), min(i + 4, n))
+                sl = slice(max(i - HALFWINDOW_MEDIAN_PERIOD, 0),
+                           min(i + HALFWINDOW_MEDIAN_PERIOD + 1, n))
                 mask = ~np.isnan(inst_periods[sl])
                 if np.any(mask):
                     med = np.median(inst_periods[sl][mask])
@@ -864,7 +865,7 @@ class CrossCorrelation:
                     median_periods.append(np.nan)
             reldiffs = np.abs((inst_periods - np.array(median_periods)) / inst_periods)
             mask = ~np.isnan(reldiffs)
-            inst_periods[mask] = np.where(reldiffs[mask] > 0.5,
+            inst_periods[mask] = np.where(reldiffs[mask] > MAX_RELDIFF_INST_MEDIAN_PERIOD,
                                           np.nan,
                                           inst_periods[mask])
 

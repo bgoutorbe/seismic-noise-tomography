@@ -186,7 +186,7 @@ SIGNAL_WINDOW_VMAX = 4.0
 SIGNAL2NOISE_TRAIL = 500.0
 NOISE_WINDOW_SIZE = 500.0
 
-# periods and velocities of FTAN analysis: start, stop and step (JSON lists)
+# periods and velocities of the FTAN: start, stop and step (JSON lists)
 
 RAWFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
 CLEANFTAN_PERIODS_STARTSTOPSTEP = [3.0, 45.1, 1.0]
@@ -205,12 +205,29 @@ FTAN_ALPHA = 20
 # the dispersion curve seeks to minimize
 STRENGTH_SMOOTHING = 1.0
 
-# replace nominal frequancy (i.e., center frequency of Gaussian filters)
+# replace nominal frequency (i.e., center frequency of Gaussian filters)
 # with instantaneous frequency (i.e., dphi/dt(t=arrival time) with phi the
 # phase of the filtered analytic signal), in the FTAN and dispersion curves?
 # See Bensen et al. (2007) for technical details.
 
 USE_INSTANTANEOUS_FREQ = True
+
+# if the instantaneous frequency (or period) is used, we need to discard bad
+# values from instantaneous periods. So:
+# - instantaneous periods whose relative difference with respect to
+#   nominal period is greater than ``MAX_RELDIFF_INST_NOMINAL_PERIOD``
+#   are discarded,
+# - instantaneous periods lower than ``MIN_INST_PERIOD`` are discarded,
+# - instantaneous periods whose relative difference with respect to the
+#   running median is greater than ``MAX_RELDIFF_INST_MEDIAN_PERIOD`` are
+#   discarded; the running median is calculated over
+#   ``HALFWINDOW_MEDIAN_PERIOD`` points to the right and to the left
+#   of each period.
+
+MAX_RELDIFF_INST_NOMINAL_PERIOD = 0.8
+MIN_INST_PERIOD = 1.5
+HALFWINDOW_MEDIAN_PERIOD = 3
+MAX_RELDIFF_INST_MEDIAN_PERIOD = 0.5
 
 # ============
 [tomography]

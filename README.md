@@ -59,6 +59,6 @@ The code is still experimental so you should regularly check for (and pull)
 updates. These will be backward-compatible, **except if new parameters appear 
 in the configuration file**.
 
-**In other word, after any update, you should check whether new parameters were added
+**In other words, after any update, you should check whether new parameters were added
 to the example configuration file (`tomo_Brazil.cnf`) and insert them accordingly
 to your own configuration file.**

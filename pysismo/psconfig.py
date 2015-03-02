@@ -193,6 +193,25 @@ STRENGTH_SMOOTHING = config.getfloat('FTAN', 'STRENGTH_SMOOTHING')
 # See Bensen et al. (2007) for technical details.
 USE_INSTANTANEOUS_FREQ = config.getboolean('FTAN', 'USE_INSTANTANEOUS_FREQ')
 
+# if the instantaneous frequency (or period) is used, we need to discard bad
+# values from instantaneous periods. So:
+# - instantaneous periods whose relative difference with respect to
+#   nominal period is greater than ``MAX_RELDIFF_INST_NOMINAL_PERIOD``
+#   are discarded,
+# - instantaneous periods lower than ``MIN_INST_PERIOD`` are discarded,
+# - instantaneous periods whose relative difference with respect to the
+#   running median is greater than ``MAX_RELDIFF_INST_MEDIAN_PERIOD`` are
+#   discarded; the running median is calculated over
+#   ``HALFWINDOW_MEDIAN_PERIOD`` points to the right and to the left
+#   of each period.
+
+MAX_RELDIFF_INST_NOMINAL_PERIOD = config.getfloat('FTAN',
+                                                  'MAX_RELDIFF_INST_NOMINAL_PERIOD')
+MIN_INST_PERIOD = config.getfloat('FTAN', 'MIN_INST_PERIOD')
+HALFWINDOW_MEDIAN_PERIOD = config.getint('FTAN', 'HALFWINDOW_MEDIAN_PERIOD')
+MAX_RELDIFF_INST_MEDIAN_PERIOD = config.getfloat('FTAN',
+                                                 'MAX_RELDIFF_INST_MEDIAN_PERIOD')
+
 # --------------------------------
 # Tomographic inversion parameters
 # --------------------------------
