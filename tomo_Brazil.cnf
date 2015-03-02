@@ -143,7 +143,7 @@ CROSSCORR_STATIONS_SUBSET = null    ; subset of stations (null if all, else JSON
 CROSSCORR_TMAX = 2000               ; max time window (s) for cross-correlation
 CROSSCORR_SKIPLOCS = ["50"]         ; locations to skip (JSON list)
 
-PERIODMIN = 7.0                     ; bandpass parameters
+PERIODMIN = 5.0                     ; bandpass parameters
 PERIODMAX = 60.0
 CORNERS = 2
 ZEROPHASE = True

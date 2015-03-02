@@ -119,12 +119,12 @@ print "- dir of miniseed data: " + MSEED_DIR
 print "- dir of dataless seed data: " + DATALESS_DIR
 print "- dir of stationXML data: " + STATIONXML_DIR
 print "- output dir: " + CROSSCORR_DIR
-print "- band-pass: {:.0f}-{:.0f} s".format(1.0 / FREQMAX, 1.0 / FREQMIN)
+print "- band-pass: {:.1f}-{:.1f} s".format(1.0 / FREQMAX, 1.0 / FREQMIN)
 if ONEBIT_NORM:
     print "- normalization in time-domain: one-bit normalization"
 else:
     s = ("- normalization in time-domain: "
-         "running normalization in earthquake band ({:.0f}-{:.0f} s)")
+         "running normalization in earthquake band ({:.1f}-{:.1f} s)")
     print s.format(1.0 / FREQMAX_EARTHQUAKE, 1.0 / FREQMIN_EARTHQUAKE)
 fmt = '%d/%m/%Y'
 if not CALC_SPECTRA:
