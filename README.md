@@ -62,3 +62,25 @@ in the configuration file**.
 **In other words, after any update, you should check whether new parameters were added
 to the example configuration file (`tomo_Brazil.cnf`) and insert them accordingly
 to your own configuration file.**
+
+References
+----------
+The cross-correlation procedure of ambient noise between pairs of stations follows
+the steps advocated by Bensen et al. (2007). 
+The measurement of dispersion curves is based on the frequency-time
+analysis (FTAN) with phase-matched filtering described in Levshin and Ritzwoller (2001) 
+and Bensen et al. (2007).
+The tomographic inversion implements the linear inversion procedure 
+with norm penalization and spatial smoothing of Barmin et al. (2001).
+
+- Barmin, M. P., Ritzwoller, M. H. and Levshin, A. L. (2001). 
+A fast and reliable method for surface wave tomography. 
+*Pure Appl. Geophys.*, **158**, p. 1351–1375. doi:10.1007/PL00001225
+
+- Bensen, G. D. et al. (2007). Processing seismic ambient noise data to obtain 
+reliable broad-band surface wave dispersion measurements. 
+*Geophys. J. Int.*, **169**(3), p. 1239–1260. doi:10.1111/j.1365-246X.2007.03374.x
+
+- Levshin, A. L. and Ritzwoller, M. H. (2001). Automated detection, extraction, 
+and measurement of regional surface waves. *Pure Appl. Geophys.*, **158**, 
+p. 1531–1545. doi:10.1007/PL00001233
