@@ -987,18 +987,49 @@ class VelocityMap:
 
         return density
 
-    def traveltime_residuals(self):
+    def traveltime_residuals(self, relative=False):
         """
-        Returns the residual between observed-predicted travel times
-        at each pair of stations:
+        Returns the [relative] differences between predicted-observed
+        travel times at each pair of stations:
 
-          residuals = observed - predicted travel-time,
-                    = dobs - dpred,
+          differences = predicted - observed travel-time,
+                      = dpred - dobs,
           with dpred = G.mopt
+
+          relative differences = (predicted - observed) / observed  travel-time
+                               = (dpred - dobs) / (dobs + ref travel-time)
+
+        @rtype: L{ndarray}
+        """
+        # flattening differences as 1D array
+        diffs = np.array(self.G * self.mopt - self.dobs).flatten()
+        if not relative:
+            return diffs
+        else:
+            ttref = np.array([c.dist() / self.v0 for c in self.disp_curves])
+            ttobs = np.array(self.dobs).flatten() + ttref  # observed travel-times
+            return diffs / ttobs
+
+    def velocity_residuals(self, relative=False):
+        """
+        Returns the [relative] differences between observed-predicted
+        velocities (implied by travel times) at each pair of stations:
+
+          differences = observed - predicted velocity,
+                      = observed - predicted (dist / travel time),
 
         @rtype: L{matrix}
         """
-        return self.dobs - self.G * self.mopt
+        dists = np.array([c.dist() for c in self.disp_curves])
+        ttref = np.array([c.dist() / self.v0 for c in self.disp_curves])
+        ttobs = np.array(self.dobs).flatten() + ttref  # observed travel-times
+        ttpred = np.array(self.G * self.mopt).flatten() + ttref  # predicted tt
+        vobs = dists / ttobs  # observed velocities
+        vpred = dists / ttpred  # predicted velocities
+        if not relative:
+            return vobs - vpred
+        else:
+            return (vobs - vpred) / vobs
 
     def checkerboard_func(self, vmid, vmin, vmax, squaresize, shape='cos'):
         """
