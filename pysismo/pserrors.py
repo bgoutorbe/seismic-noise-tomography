@@ -19,6 +19,13 @@ class NoPAZFound(Exception):
         Exception.__init__(self, *args, **kwargs)
 
 
+class CannotCalculateInstFreq(Exception):
+    """
+    Cannot calculate instantaneous frequency in FTAN
+    """
+    def __init__(self, *args, **kwargs):
+        Exception.__init__(self, *args, **kwargs)
+
 class CannotPerformTomoInversion(Exception):
     """
     Cannot perform tomographic inversion (e.g., because no data is available)

@@ -752,6 +752,9 @@ class CrossCorrelation:
         group velocity disperion curve extracted from the amplitude
         matrix.
 
+        Raises CannotCalculateInstFreq if the calculation of instantaneous
+        frequencies only gives bad values.
+
         FTAN periods in variable *RAWFTAN_PERIODS* and *CLEANFTAN_PERIODS*
         FTAN velocities in variable *FTAN_VELOCITIES*
 
@@ -871,6 +874,10 @@ class CrossCorrelation:
 
             # filling holes by linear interpolation
             masknan = np.isnan(inst_periods)
+            if masknan.all():
+                # not a single correct value of inst period!
+                s = "Not a single correct value of instantaneous period!"
+                raise pserrors.CannotCalculateInstFreq(s)
             if masknan.any():
                 inst_periods[masknan] = np.interp(x=masknan.nonzero()[0],
                                                   xp=(~masknan).nonzero()[0],
@@ -987,27 +994,52 @@ class CrossCorrelation:
 
         # raw FTAN (no need to whiten any more)
         rawvg_init = np.zeros_like(RAWFTAN_PERIODS)
-        rawampl, _, rawvg = xc.FTAN(whiten=False,
-                                    months=months,
-                                    optimize_curve=optimize_curve,
-                                    strength_smoothing=strength_smoothing,
-                                    use_inst_freq=use_inst_freq,
-                                    vg_at_nominal_freq=rawvg_init,
-                                    **kwargs)
+        try:
+            rawampl, _, rawvg = xc.FTAN(whiten=False,
+                                        months=months,
+                                        optimize_curve=optimize_curve,
+                                        strength_smoothing=strength_smoothing,
+                                        use_inst_freq=use_inst_freq,
+                                        vg_at_nominal_freq=rawvg_init,
+                                        **kwargs)
+        except pserrors.CannotCalculateInstFreq:
+            # pb with instantaneous frequency: returnin NaNs
+            print "Warning: could not calculate instantenous frequencies in raw FTAN!"
+            rawampl = np.nan * np.zeros((len(RAWFTAN_PERIODS), len(FTAN_VELOCITIES)))
+            cleanampl = np.nan * np.zeros((len(CLEANFTAN_PERIODS), len(FTAN_VELOCITIES)))
+            rawvg = pstomo.DispersionCurve(periods=RAWFTAN_PERIODS,
+                                           v=np.nan * np.zeros(len(RAWFTAN_PERIODS)),
+                                           station1=self.station1,
+                                           station2=self.station2)
+            cleanvg = pstomo.DispersionCurve(periods=CLEANFTAN_PERIODS,
+                                             v=np.nan * np.zeros(len(CLEANFTAN_PERIODS)),
+                                             station1=self.station1,
+                                             station2=self.station2)
+            return rawampl, rawvg, cleanampl, cleanvg
 
         # phase function from raw vg curve
         phase_corr = xc.phase_func(vgcurve=rawvg)
 
         # clean FTAN
         cleanvg_init = np.zeros_like(CLEANFTAN_PERIODS)
-        cleanampl, _, cleanvg = xc.FTAN(whiten=False,
-                                        phase_corr=phase_corr,
-                                        months=months,
-                                        optimize_curve=optimize_curve,
-                                        strength_smoothing=strength_smoothing,
-                                        use_inst_freq=use_inst_freq,
-                                        vg_at_nominal_freq=cleanvg_init,
-                                        **kwargs)
+        try:
+            cleanampl, _, cleanvg = xc.FTAN(whiten=False,
+                                            phase_corr=phase_corr,
+                                            months=months,
+                                            optimize_curve=optimize_curve,
+                                            strength_smoothing=strength_smoothing,
+                                            use_inst_freq=use_inst_freq,
+                                            vg_at_nominal_freq=cleanvg_init,
+                                            **kwargs)
+        except pserrors.CannotCalculateInstFreq:
+            # pb with instantaneous frequency: returnin NaNs
+            print "Warning: could not calculate instantenous frequencies in clean FTAN!"
+            cleanampl = np.nan * np.zeros((len(CLEANFTAN_PERIODS), len(FTAN_VELOCITIES)))
+            cleanvg = pstomo.DispersionCurve(periods=CLEANFTAN_PERIODS,
+                                             v=np.nan * np.zeros(len(CLEANFTAN_PERIODS)),
+                                             station1=self.station1,
+                                             station2=self.station2)
+            return rawampl, rawvg, cleanampl, cleanvg
 
         # adding spectral SNRs associated with the periods of the
         # clean vg curve
@@ -1036,24 +1068,30 @@ class CrossCorrelation:
 
                 # raw-clean FTAN on trimester data, using the vg curve
                 # extracted from all data as initial guess
-                _, _, rawvg_trimester = xc.FTAN(whiten=False,
-                                                months=months_of_xc,
-                                                vgarray_init=rawvg_init,
-                                                optimize_curve=optimize_curve,
-                                                strength_smoothing=strength_smoothing,
-                                                use_inst_freq=use_inst_freq,
-                                                **kwargs)
+                try:
+                    _, _, rawvg_trimester = xc.FTAN(
+                        whiten=False,
+                        months=months_of_xc,
+                        vgarray_init=rawvg_init,
+                        optimize_curve=optimize_curve,
+                        strength_smoothing=strength_smoothing,
+                        use_inst_freq=use_inst_freq,
+                        **kwargs)
 
-                phase_corr_trimester = xc.phase_func(vgcurve=rawvg_trimester)
+                    phase_corr_trimester = xc.phase_func(vgcurve=rawvg_trimester)
 
-                _, _, cleanvg_trimester = xc.FTAN(whiten=False,
-                                                  phase_corr=phase_corr_trimester,
-                                                  months=months_of_xc,
-                                                  vgarray_init=cleanvg_init,
-                                                  optimize_curve=optimize_curve,
-                                                  strength_smoothing=strength_smoothing,
-                                                  use_inst_freq=use_inst_freq,
-                                                  **kwargs)
+                    _, _, cleanvg_trimester = xc.FTAN(
+                        whiten=False,
+                        phase_corr=phase_corr_trimester,
+                        months=months_of_xc,
+                        vgarray_init=cleanvg_init,
+                        optimize_curve=optimize_curve,
+                        strength_smoothing=strength_smoothing,
+                        use_inst_freq=use_inst_freq,
+                        **kwargs)
+                except pserrors.CannotCalculateInstFreq:
+                    # skipping trimester in case of pb with instantenous frequency
+                    continue
 
                 # adding spectral SNRs associated with the periods of the
                 # clean trimester vg curve
@@ -1115,14 +1153,14 @@ class CrossCorrelation:
           raw FTAN (basically, the amplitude of the envelope of the
           cross-correlation at time t = dist / vg, after applying a Gaussian
           bandpass filter centered at period T). The raw and clean dispersion
-          curves (group velocity function of period) and SNR function period
-          are also shown.
+          curves (group velocity function of period) are also shown.
 
         - 3rd panel shows the same image, but for the clean FTAN (wherein the
           phase of the cross-correlation is corrected thanks to the raw
           dispersion curve). Also shown are the clean dispersion curve,
-          the 3-month dispersion curves and the standard deviation of the
-          group velocity calculated from these 3-month dispersion curves.
+          the 3-month dispersion curves, the standard deviation of the
+          group velocity calculated from these 3-month dispersion curves
+          and the SNR function of period.
           Only the velocities passing the default selection criteria
           (defined in the configuration file) are plotted.
 
@@ -1200,9 +1238,9 @@ class CrossCorrelation:
                                  signal2noise_trail=signal2noise_trail,
                                  noise_window_size=noise_window_size)
 
-        # =========================
-        # 2st panel: raw FTAN + SNR
-        # =========================
+        # ===================
+        # 2st panel: raw FTAN
+        # ===================
 
         gs2 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0)
         ax = fig.add_subplot(gs2[0, 0])
@@ -1232,15 +1270,6 @@ class CrossCorrelation:
         cutoffperiod = self.dist() / 12.0
         ax.plot([cutoffperiod, cutoffperiod], ylim, color='grey')
 
-        # adding SNR function of period (on a separate y-axis)
-        ax2 = ax.twinx()
-        ax2.plot(cleanvg.periods, cleanvg.get_SNRs(), color='green', lw=2)
-        # fake plot for SNR to appear in legeng
-        ax.plot([-1, 0], [0, 0], lw=2, color='green', label='SNR')
-        ax2.set_ylabel('SNR', color='green')
-        for tl in ax2.get_yticklabels():
-            tl.set_color('green')
-
         # setting legend and initial extent
         ax.legend(fontsize=11, loc='upper right')
         x = (xlim[0] + xlim[1]) / 2.0
@@ -1252,9 +1281,9 @@ class CrossCorrelation:
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
 
-        # =====================
-        # 3nd panel: clean FTAN
-        # =====================
+        # ===========================
+        # 3nd panel: clean FTAN + SNR
+        # ===========================
         gs3 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0)
         ax = fig.add_subplot(gs3[0, 0])
 
@@ -1271,6 +1300,16 @@ class CrossCorrelation:
         # saving limits
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
+
+        # adding SNR function of period (on a separate y-axis)
+        ax2 = ax.twinx()
+        ax2.plot(cleanvg.periods, cleanvg.get_SNRs(xc=self), color='green', lw=2)
+        # fake plot for SNR to appear in legend
+        ax.plot([-1, 0], [0, 0], lw=2, color='green', label='SNR')
+        ax2.set_ylabel('SNR', color='green')
+        for tl in ax2.get_yticklabels():
+            tl.set_color('green')
+
         # trimester vg curves
         ntrimester = len(cleanvg.v_trimesters)
         for i, vg_trimester in enumerate(cleanvg.filtered_trimester_vels()):
@@ -1282,6 +1321,7 @@ class CrossCorrelation:
         fmt = '-' if (~np.isnan(vels)).sum() > 1 else 'o'
         ax.errorbar(x=cleanvg.periods, y=vels, yerr=sdevs, fmt=fmt, color='black',
                     lw=2, label='clean disp curve')
+
         # legend
         ax.legend(fontsize=11, loc='upper right')
         x = (xlim[0] + xlim[1]) / 2.0
@@ -1317,7 +1357,7 @@ class CrossCorrelation:
         # adjusting sizes
         gs1.update(left=0.03, right=0.25)
         gs2.update(left=0.30, right=0.535)
-        gs3.update(left=0.605, right=0.84)
+        gs3.update(left=0.585, right=0.81)
         gs4.update(left=0.85, right=0.98)
 
         # figure title, e.g., 'BL.GNSB-IU.RCBR, dist=1781 km, ndays=208'
