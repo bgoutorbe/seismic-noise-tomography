@@ -1167,7 +1167,8 @@ class CrossCorrelation:
           (defined in the configuration file) are plotted.
 
         - 4th panel shows a small map with the pair of stations, with
-          bounding box *bbox* = (min lon, max lon, min lat, max lat).
+          bounding box *bbox* = (min lon, max lon, min lat, max lat),
+          and, if applicable, a plot of instantaneous vs nominal period
 
         The raw amplitude, raw dispersion curve, clean amplitude and clean
         dispersion curve of the FTAN are given in *rawampl*, *rawvg*,
@@ -1339,10 +1340,12 @@ class CrossCorrelation:
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
 
-        # ======================================
-        # 4rd panel: tectonic provinces and pair
-        # ======================================
+        # ===========================================
+        # 4rd panel: tectonic provinces + pair (top),
+        # instantaneous vs nominal period (bottom)
+        # ===========================================
 
+        # tectonic provinces and pairs
         gs4 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0.0)
         ax = fig.add_subplot(gs4[0, 0])
 
@@ -1356,11 +1359,28 @@ class CrossCorrelation:
         ax.set_xlim(bbox[:2])
         ax.set_ylim(bbox[2:])
 
+        # instantaneous vs nominal period (if applicable)
+        gs5 = gridspec.GridSpec(1, 1, wspace=0.2, hspace=0.0)
+        if rawvg.nom2inst_periods or cleanvg.nom2inst_periods:
+            ax = fig.add_subplot(gs5[0, 0])
+            if rawvg.nom2inst_periods:
+                nomperiods, instperiods = zip(*rawvg.nom2inst_periods)
+                ax.plot(nomperiods, instperiods, '-', label='raw FTAN')
+            if cleanvg.nom2inst_periods:
+                nomperiods, instperiods = zip(*cleanvg.nom2inst_periods)
+                ax.plot(nomperiods, instperiods, '-', label='clean FTAN')
+
+            ax.set_xlabel('Nominal period (s)')
+            ax.set_ylabel('Instantaneous period (s)')
+            ax.legend(fontsize=9, loc='lower right')
+            ax.grid(True)
+
         # adjusting sizes
         gs1.update(left=0.03, right=0.25)
         gs2.update(left=0.30, right=0.535)
         gs3.update(left=0.585, right=0.81)
-        gs4.update(left=0.85, right=0.98)
+        gs4.update(left=0.85, right=0.98, bottom=0.51)
+        gs5.update(left=0.87, right=0.98, top=0.48)
 
         # figure title, e.g., 'BL.GNSB-IU.RCBR, dist=1781 km, ndays=208'
         title = self._FTANplot_title(months=months)
