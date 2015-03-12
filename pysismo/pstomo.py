@@ -1,5 +1,6 @@
 """
-Module related to seismic tomography
+Definition of classes handling dispersion curves and
+velocity maps (obtained by inverting dispersion curves)
 """
 
 import pserrors, psutils
@@ -39,9 +40,9 @@ EPS = 1.0E-6
 # --------------------------------------
 c = ColorConverter()
 colors = ['black', 'red', 'gold', 'white',
-          'white', 'aquamarine', 'blue', 'mediumvioletred']
-values = [-1.0, -0.4, -0.1, -0.025,
-          0.025, 0.1, 0.4, 1.0]
+          'white', 'aquamarine', 'blue', 'magenta']
+values = [-1.0, -0.35, -0.1, -0.025,
+          0.025, 0.1, 0.35, 1.0]
 rgblist = [c.to_rgb(s) for s in colors]
 reds, greens, blues = zip(*rgblist)
 cdict = {}

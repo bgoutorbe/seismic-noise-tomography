@@ -1,5 +1,6 @@
 """
-Module managing seismic stations
+Definition of a class managing general information
+on a seismic station
 """
 
 import pserrors

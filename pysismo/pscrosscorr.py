@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """
-Module managing cross-correlation operations
+Module that contains classes holding cross-correlations and related
+processing, such as frequency-time analysis (FTAN) to measure
+dispersion curves.
 """
 
 import pserrors, psutils, pstomo

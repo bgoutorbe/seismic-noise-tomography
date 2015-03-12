@@ -68,11 +68,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 import itertools as it
 
 # inversion parameters to vary
-PERIODS = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
+PERIODS = [10.0, 20.0]
 GRID_STEPS = [1.0]
 MINPECTSNRS = [7.0]
-CORR_LENGTHS = [150]
-ALPHAS = [600, 1500, 3000]
+CORR_LENGTHS = [50, 150, 250]
+ALPHAS = [200, 400, 600]
 BETAS = [200]
 LAMBDAS = [0.3]
 
