@@ -409,10 +409,10 @@ class Grid:
         return self.xy(np.arange(0, self.n_nodes()))
 
     def xarray(self):
-        return np.arange(self.xmin, self.get_xmax() + self.xstep, self.xstep)
+        return np.linspace(self.xmin, self.get_xmax(), num=self.nx, endpoint=True)
 
     def yarray(self):
-        return np.arange(self.ymin, self.get_ymax() + self.ystep, self.ystep)
+        return np.linspace(self.ymin, self.get_ymax(), num=self.ny, endpoint=True)
 
     def index_(self, ix, iy):
         """
