@@ -76,11 +76,17 @@ with norm penalization and spatial smoothing of Barmin et al. (2001).
 - Barmin, M. P., Ritzwoller, M. H. and Levshin, A. L. (2001). 
 A fast and reliable method for surface wave tomography. 
 *Pure Appl. Geophys.*, **158**, p. 1351–1375. doi:10.1007/PL00001225
+\[[journal](http://link.springer.com/article/10.1007%2FPL00001225)\]
+\[[pdf](http://jspc-www.colorado.edu/pubs/2001/1.pdf)\]
 
 - Bensen, G. D. et al. (2007). Processing seismic ambient noise data to obtain 
 reliable broad-band surface wave dispersion measurements. 
 *Geophys. J. Int.*, **169**(3), p. 1239–1260. doi:10.1111/j.1365-246X.2007.03374.x
+\[[journal](http://onlinelibrary.wiley.com/doi/10.1111/j.1365-246X.2007.03374.x/abstract)\]
+\[[pdf](http://ciei.colorado.edu/pubs/2007/2.pdf)\]
 
 - Levshin, A. L. and Ritzwoller, M. H. (2001). Automated detection, extraction, 
 and measurement of regional surface waves. *Pure Appl. Geophys.*, **158**, 
 p. 1531–1545. doi:10.1007/PL00001233
+\[[journal](http://link.springer.com/chapter/10.1007%2F978-3-0348-8264-4_11)\]
+\[[pdf](http://ciei.colorado.edu/pubs/pageoph_01/Levshin_Ritzwoller_pag2001.pdf)\]
