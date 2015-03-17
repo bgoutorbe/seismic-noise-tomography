@@ -2558,7 +2558,7 @@ def dispcurve_penaltyfunc(vgarray, amplarray, strength_smoothing=STRENGTH_SMOOTH
     @type amplarray: L{numpy.ndarray}
     """
     # removing nans
-    notnan = -(np.isnan(vgarray) | np.isnan(amplarray))
+    notnan = ~(np.isnan(vgarray) | np.isnan(amplarray))
     vgarray = vgarray[notnan]
 
     # jumps
