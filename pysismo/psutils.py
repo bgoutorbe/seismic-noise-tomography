@@ -76,9 +76,6 @@ def get_fill(st, starttime=None, endtime=None):
         # no trace
         return 0.0
 
-    if len(set([tr.id for tr in st])) > 1:
-        raise Exception('More than one trace! {0}'.format(set(tr.id for tr in st)))
-
     ststart = min(tr.stats.starttime for tr in st)
     stend = max(tr.stats.endtime for tr in st)
     dttot = (stend if not endtime else endtime) - \

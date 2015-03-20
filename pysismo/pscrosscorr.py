@@ -5,12 +5,12 @@ processing, such as frequency-time analysis (FTAN) to measure
 dispersion curves.
 """
 
-import pserrors, psutils, pstomo
+import pserrors, psstation, psutils, pstomo
 import obspy.signal
 import obspy.xseed
 import obspy.signal.cross_correlation
 import obspy.signal.filter
-from obspy.core import AttribDict
+from obspy.core import AttribDict, read, UTCDateTime, Trace
 from obspy.signal.invsim import cosTaper
 import numpy as np
 from numpy.fft import rfft, irfft, fft, ifft, fftfreq
@@ -39,6 +39,8 @@ plt.ioff()  # turning off interactive mode
 # ====================================================
 from psconfig import (
     CROSSCORR_DIR, FTAN_DIR, PERIOD_BANDS, CROSSCORR_TMAX, PERIOD_RESAMPLE,
+    CROSSCORR_SKIPLOCS, MINFILL, FREQMIN, FREQMAX, CORNERS, ZEROPHASE,
+    ONEBIT_NORM, FREQMIN_EARTHQUAKE, FREQMAX_EARTHQUAKE, WINDOW_TIME, WINDOW_FREQ,
     SIGNAL_WINDOW_VMIN, SIGNAL_WINDOW_VMAX, SIGNAL2NOISE_TRAIL, NOISE_WINDOW_SIZE,
     RAWFTAN_PERIODS, CLEANFTAN_PERIODS, FTAN_VELOCITIES, FTAN_ALPHA, STRENGTH_SMOOTHING,
     USE_INSTANTANEOUS_FREQ, MAX_RELDIFF_INST_NOMINAL_PERIOD, MIN_INST_PERIOD,
@@ -2232,6 +2234,253 @@ class CrossCorrelationCollection(AttribDict):
                 raise Exception(s)
 
         return reftimearray
+
+
+def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(),
+                       skiplocs=CROSSCORR_SKIPLOCS, minfill=MINFILL,
+                       freqmin=FREQMIN, freqmax=FREQMAX,
+                       freqmin_earthquake=FREQMIN_EARTHQUAKE,
+                       freqmax_earthquake=FREQMAX_EARTHQUAKE,
+                       corners=CORNERS, zerophase=ZEROPHASE,
+                       period_resample=PERIOD_RESAMPLE,
+                       onebit_norm=ONEBIT_NORM,
+                       window_time=WINDOW_TIME, window_freq=WINDOW_FREQ,
+                       verbose=False):
+    """
+    Returns a processed trace (ready to be cross-correlated)
+    from a selected station and date, by applying the following
+    steps:
+    - removal of instrument response, mean and trend
+    - band-pass filtering between *freqmin*-*freqmax*
+    - downsampling to *period_resample* secs
+    - time-normalization (one-bit normalization or normalization
+      by the running mean in the earthquake frequency band)
+    - spectral whitening (if running mean normalization)
+
+    Raises CannotPreprocess exception if:
+    - data fill is < *minfill*
+    - no instrumental response is found
+    - trace only contains 0 (happens sometimes...)
+    - a normalization weight is 0 or NaN
+    - a Nan appeared in trace data
+
+    @type station: L{psstation.Station}
+    @type date: L{datetime.date}
+    @param dataless_inventories: inventories from dataless seed files (as returned by
+                                 psstation.get_dataless_inventories())
+    @type dataless_inventories: list of L{obspy.xseed.parser.Parser}
+    @param xml_inventories: inventories from StationXML files (as returned by
+                            psstation.get_stationxml_inventories())
+    @type dataless_inventories: list of L{obspy.station.inventory.Inventory}
+    @param skiplocs: list of locations to discard in station's data
+    @type skiplocs: iterable
+    @param minfill: minimum data fill to keep trace
+    @param freqmin: low frequency of the band-pass filter
+    @param freqmax: high frequency of the band-pass filter
+    @param freqmin_earthquake: low frequency of the earthquake band
+    @param freqmax_earthquake: high frequency of the earthquake band
+    @param corners: nb or corners of the band-pass filter
+    @param zerophase: set to True for filter not to shift phase
+    @type zerophase: bool
+    @param period_resample: resampling period in seconds
+    @param onebit_norm: set to True to apply one-bit normalization (else,
+                        running mean normalization is applied)
+    @type onebit_norm: bool
+    @param window_time: width of the window to calculate the running mean
+                        in the earthquake band (for the time-normalization)
+    @param window_freq: width of the window to calculate the running mean
+                        of the amplitude spectrum (for the spectral whitening)
+    @rtype: L{obspy.core.trace.Trace}
+    """
+
+    if verbose:
+        print "{}.{}".format(station.network, station.name),
+
+    # ========================================================
+    # preliminary steps to get one (merged) trace from station
+    # at selected date, checking data fill in the process
+    # ========================================================
+
+    # getting station's stream at selected date
+    # (+/- one hour to avoid edge effects when removing response)
+    t0 = UTCDateTime(date.year, date.month, date.day)  # date at time 00h00m00s
+    st = read(pathname_or_url=station.getpath(date),
+              starttime=t0 - dt.timedelta(hours=1),
+              endtime=t0 + dt.timedelta(days=1, hours=1))
+
+    # removing traces of stream from locations to skip
+    for tr in [tr for tr in st if tr.stats.location in skiplocs]:
+        st.remove(tr)
+
+    # if more than one location, we retain only the first one
+    if len(set(tr.id for tr in st)) > 1:
+        select_loc = sorted(set(tr.stats.location for tr in st))[0]
+        for tr in [tr for tr in st if tr.stats.location != select_loc]:
+            st.remove(tr)
+
+    # Data fill for current date
+    fill = psutils.get_fill(st, starttime=t0, endtime=t0 + dt.timedelta(days=1))
+    if fill < minfill:
+        # not enough data
+        if verbose:
+            print "[{:.0f}% fill: skipping]".format(fill * 100),
+        raise pserrors.CannotPreprocess("{:.0f}% fill".format(fill * 100))
+
+    # Merging traces, FILLING GAPS WITH LINEAR INTERP
+    st.merge(fill_value='interpolate')
+    trace = st[0]
+    assert isinstance(trace, Trace)  # to enable auto-completion in PyCharm
+
+    # ===============================
+    # Looking for instrument response
+    # ===============================
+
+    # looking for instrument response...
+    paz = None
+    try:
+        # ...first in dataless seed inventories
+        paz = psstation.get_paz(channelid=trace.id,
+                                t=t0,
+                                inventories=dataless_inventories)
+    except pserrors.NoPAZFound:
+        # ... then in dataless seed inventories, replacing 'BHZ' with 'HHZ'
+        # in trace's id (trick to make code work with Diogo's data)
+        try:
+            paz = psstation.get_paz(channelid=trace.id.replace('BHZ', 'HHZ'),
+                                    t=t0,
+                                    inventories=dataless_inventories)
+        except pserrors.NoPAZFound:
+            # ...finally in StationXML inventories
+            try:
+                trace.attach_response(inventories=xml_inventories)
+            except:
+                # no response found!
+                if verbose:
+                    print '[no response found: skipping]',
+                raise pserrors.CannotPreprocess("No response found")
+
+    # ============================================
+    # Removing instrument response, mean and trend
+    # ============================================
+
+    # removing response...
+    if paz:
+        # ...using paz:
+        if trace.stats.sampling_rate > 10.0:
+            # decimating large trace, else fft crashes
+            factor = int(np.ceil(trace.stats.sampling_rate / 10))
+            trace.decimate(factor=factor, no_filter=True)
+        trace.simulate(paz_remove=paz,
+                       paz_simulate=obspy.signal.cornFreq2Paz(0.01),
+                       remove_sensitivity=True,
+                       simulate_sensitivity=True,
+                       nfft_pow2=True)
+    else:
+        # ...using StationXML:
+        # first band-pass to downsample data before removing response
+        # (else remove_response() method is slow or even hangs)
+        trace.filter(type="bandpass",
+                     freqmin=freqmin,
+                     freqmax=freqmax,
+                     corners=corners,
+                     zerophase=zerophase)
+        psutils.resample(trace, dt_resample=period_resample)
+        trace.remove_response(output="VEL", zero_mean=True)
+
+    # trimming, demeaning, detrending
+    trace.trim(starttime=t0, endtime=t0 + dt.timedelta(days=1))
+    trace.detrend(type='constant')
+    trace.detrend(type='linear')
+
+    if np.all(trace.data == 0.0):
+        # no data -> skipping trace
+        if verbose:
+            print "[only zeros: skipping]",
+        raise pserrors.CannotPreprocess("Only zeros")
+
+    # =========
+    # Band-pass
+    # =========
+    # keeping a copy of the trace to calculate weights of time-normalization
+    trcopy = trace.copy()
+
+    # band-pass
+    trace.filter(type="bandpass",
+                 freqmin=freqmin,
+                 freqmax=freqmax,
+                 corners=corners,
+                 zerophase=zerophase)
+
+    # downsampling trace if not already done
+    if abs(1.0 / trace.stats.sampling_rate - period_resample) > EPS:
+        psutils.resample(trace, dt_resample=period_resample)
+
+    # ==================
+    # Time normalization
+    # ==================
+    if onebit_norm:
+        # one-bit normalization
+        trace.data = np.sign(trace.data)
+    else:
+        # normalization of the signal by the running mean
+        # in the earthquake frequency band
+        trcopy.filter(type="bandpass",
+                      freqmin=freqmin_earthquake,
+                      freqmax=freqmax_earthquake,
+                      corners=corners,
+                      zerophase=zerophase)
+        # decimating trace
+        psutils.resample(trcopy, period_resample)
+
+        # Time-normalization weights from smoothed abs(data)
+        # Note that trace's data can be a masked array
+        halfwindow = int(round(window_time * trcopy.stats.sampling_rate / 2))
+        mask = ~trcopy.data.mask if np.ma.isMA(trcopy.data) else None
+        tnorm_w = psutils.moving_avg(np.abs(trcopy.data),
+                                     halfwindow=halfwindow,
+                                     mask=mask)
+        if np.ma.isMA(trcopy.data):
+            # turning time-normalization weights into a masked array
+            if verbose:
+                print "[warning: trace's data is a masked array]",
+            tnorm_w = np.ma.masked_array(tnorm_w, trcopy.data.mask)
+
+        if np.any((tnorm_w == 0.0) | np.isnan(tnorm_w)):
+            # illegal normalizing value -> skipping trace
+            if verbose:
+                print "[zero or NaN normalization weight: skipping]",
+            raise pserrors.CannotPreprocess("Zero or NaN normalization weight")
+
+        # time-normalization
+        trace.data /= tnorm_w
+
+        # ==================
+        # Spectral whitening
+        # ==================
+        fft = rfft(trace.data)  # real FFT
+        deltaf = trace.stats.sampling_rate / trace.stats.npts  # frequency step
+        # smoothing amplitude spectrum
+        halfwindow = int(round(window_freq / deltaf / 2.0))
+        weight = psutils.moving_avg(abs(fft), halfwindow=halfwindow)
+        # normalizing spectrum and back to time domain
+        trace.data = irfft(fft / weight, n=len(trace.data))
+        # re bandpass to avoid low/high freq noise
+        trace.filter(type="bandpass",
+                     freqmin=freqmin,
+                     freqmax=freqmax,
+                     corners=corners,
+                     zerophase=zerophase)
+
+    # Verifying that we don't have nan in trace data
+    if np.any(np.isnan(trace.data)):
+        if verbose:
+            print "[got NaN in trace data: skipping]",
+        raise pserrors.CannotPreprocess("Got NaN in trace data")
+
+    # returning processed trace, ready to be cross-correlated
+    if verbose:
+        print "[ok]",
+    return trace
 
 
 def load_pickled_xcorr(pickle_file):

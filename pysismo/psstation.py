@@ -70,7 +70,7 @@ class Station:
     def getpath(self, date):
         """
         Gets path to mseed file (normally residing in subdir 'basedir/yyyy-mm/')
-        @type date: L{UTCDateTime}
+        @type date: L{UTCDateTime} or L{datetime} or L{date}
         @rtype: unicode
         """
         subdir = '{y:04d}-{m:02d}'.format(y=date.year, m=date.month)
@@ -190,7 +190,7 @@ def get_stats(filepath, channel='BHZ', fast=True):
     return stationstats
 
 
-def get_stations(mseed_dir=MSEED_DIR, xmlinventories=(), datalessinventories=(),
+def get_stations(mseed_dir=MSEED_DIR, xml_inventories=(), dataless_inventories=(),
                  networks=None, startday=None, endday=None, coord_tolerance=1E-4,
                  verbose=True):
     """
@@ -199,11 +199,11 @@ def get_stations(mseed_dir=MSEED_DIR, xmlinventories=(), datalessinventories=(),
     inventories.
 
     @type mseed_dir: str or unicode
-    @type xmlinventories: list of L{obspy.station.inventory.Inventory}
-    @type datalessinventories: list of L{obspy.xseed.parser.Parser})
+    @type xml_inventories: list of L{obspy.station.inventory.Inventory}
+    @type dataless_inventories: list of L{obspy.xseed.parser.Parser})
     @type networks: list of str
-    @type startday: L{UTCDateTime}
-    @type endday: L{UTCDateTime}
+    @type startday: L{datetime.date}
+    @type endday: L{datetime.date}
     @rtype: list of L{Station}
     """
     if verbose:
@@ -250,12 +250,12 @@ def get_stations(mseed_dir=MSEED_DIR, xmlinventories=(), datalessinventories=(),
 
     for sta in copy(stations):
         # coordinates of station in dataless inventories
-        coords_set = set((c['longitude'], c['latitude']) for inv in datalessinventories
+        coords_set = set((c['longitude'], c['latitude']) for inv in dataless_inventories
                          for c in inv.getInventory()['channels']
                          if c['channel_id'].split('.')[:2] == [sta.network, sta.name])
 
         # coordinates of station in xml inventories
-        coords_set = coords_set.union((s.longitude, s.latitude) for inv in xmlinventories
+        coords_set = coords_set.union((s.longitude, s.latitude) for inv in xml_inventories
                                       for net in inv for s in net.stations
                                       if net.code == sta.network and s.code == sta.name)
 
@@ -335,7 +335,7 @@ def get_dataless_inventories(dataless_dir=DATALESS_DIR, verbose=False):
 
     @type dataless_dir: unicode or str
     @type verbose: bool
-    @rtype: list of L{obspy.xseed.parser.Parser} or dict
+    @rtype: list of L{obspy.xseed.parser.Parser}
     """
     inventories = []
 

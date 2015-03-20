@@ -8,7 +8,6 @@ import ConfigParser
 import os
 import glob
 import json
-from obspy.core import UTCDateTime
 import datetime as dt
 import numpy as np
 
@@ -99,9 +98,9 @@ CROSSCORR_SKIPLOCS = json.loads(config.get('cross-correlation', 'CROSSCORR_SKIPL
 
 # first and last day, minimum data fill per day
 FIRSTDAY = config.get('cross-correlation', 'FIRSTDAY')
-FIRSTDAY = UTCDateTime(dt.datetime.strptime(FIRSTDAY, '%d/%m/%Y'))
+FIRSTDAY = dt.datetime.strptime(FIRSTDAY, '%d/%m/%Y').date()
 LASTDAY = config.get('cross-correlation', 'LASTDAY')
-LASTDAY = UTCDateTime(dt.datetime.strptime(LASTDAY, '%d/%m/%Y'))
+LASTDAY = dt.datetime.strptime(LASTDAY, '%d/%m/%Y').date()
 MINFILL = config.getfloat('cross-correlation', 'MINFILL')
 
 # band-pass parameters
@@ -131,17 +130,6 @@ WINDOW_FREQ = config.getfloat('cross-correlation', 'WINDOW_FREQ')
 
 # Max time window (s) for cross-correlation
 CROSSCORR_TMAX = config.getfloat('cross-correlation', 'CROSSCORR_TMAX')
-
-# Parameters for spectrum calculation
-# calc spectra (instead of cross-corr)?
-CALC_SPECTRA = config.getboolean('cross-correlation', 'CALC_SPECTRA')
-SPECTRA_STATIONS = json.loads(config.get('cross-correlation', 'SPECTRA_STATIONS'))
-SPECTRA_FIRSTDAY = config.get('cross-correlation', 'SPECTRA_FIRSTDAY')
-SPECTRA_FIRSTDAY = UTCDateTime(dt.datetime.strptime(SPECTRA_FIRSTDAY, '%d/%m/%Y'))
-SPECTRA_LASTDAY = config.get('cross-correlation', 'SPECTRA_LASTDAY')
-SPECTRA_LASTDAY = UTCDateTime(dt.datetime.strptime(SPECTRA_LASTDAY, '%d/%m/%Y'))
-# plot traces OF LAST DAY along with spectra?
-PLOT_TRACES = config.getboolean('cross-correlation', 'PLOT_TRACES')
 
 
 # ---------------

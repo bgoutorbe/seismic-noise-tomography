@@ -155,12 +155,6 @@ PERIODMAX_EARTHQUAKE = 50.0
 
 WINDOW_FREQ = 0.0002                ; freq window (Hz) to smooth ampl spectrum
 
-CALC_SPECTRA = False                ; plot spectra (instead of calculating cross-corr)?
-SPECTRA_STATIONS = ["NUPB", "PACB"] ; stations (JSON list)
-SPECTRA_FIRSTDAY = 1/5/2002
-SPECTRA_LASTDAY = 2/5/2002
-PLOT_TRACES = True                  ; plot traces OF LAST DAY along with spectra?
-
 
 #=====
 [FTAN]
