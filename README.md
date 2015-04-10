@@ -23,6 +23,11 @@ to install the following packages:
 It is recommended to install these packages with `pip install ...` or with your
 favourite package manager, e.g., `apt-get install ...`.
 
+Optionally, you may want to install the 
+[Computer Programs in Seismology](http://www.eas.slu.edu/eqc/eqccps.html)
+to be able to invert your dispersion maps for a 1-D shear velocity model,
+as these programs take care of the forward modelling.
+
 How to start
 ------------
 You should start reading the example configuration file, `tomo_Brazil.cnf`, which
