@@ -78,6 +78,12 @@ DATALESS_DIR = ../Dataless seed
 CROSSCORR_DIR = ./output/cross-correlation  ; dir of cross-correlation results
 FTAN_DIR = ./output/FTAN                    ; dir of FTAN results (including dispersion curves)
 TOMO_DIR = ./output/tomography              ; dir of tomographic inversion results
+DEPTHMODELS_DIR = ./output/1D models        ; dir of 1D depth inversion results
+
+# dir of the (binaries of the) Computer Programs in Seismology, used
+# to calculate a theoretical dispersion curve given a 1D model
+# (set to null if you have not installed them)
+COMPUTER_PROGRAMS_IN_SEISMOLOGY_DIR = /home/bruno/Data/Recherche/Utilitaires/Programmes/Computer Programs in Seismology/bin
 
 
 #=====
@@ -223,9 +229,9 @@ MIN_INST_PERIOD = 1.5
 HALFWINDOW_MEDIAN_PERIOD = 3
 MAX_RELDIFF_INST_MEDIAN_PERIOD = 0.5
 
-# ============
+# ==========
 [tomography]
-# ============
+# ==========
 
 # Default parameters related to the velocity selection criteria
 

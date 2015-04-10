@@ -80,6 +80,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 # periods
 PERIODS = [6.0, 10.0, 16.0, 20.0, 23.0]
+# PERIODS = range(10, 31)
 
 # parameters for the 1st and 2nd pass, respectively
 GRID_STEPS = (1.0, 1.0)

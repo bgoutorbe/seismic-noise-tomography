@@ -64,6 +64,11 @@ DATALESS_DIR = config.get('paths', 'DATALESS_DIR')
 CROSSCORR_DIR = config.get('paths', 'CROSSCORR_DIR')
 FTAN_DIR = config.get('paths', 'FTAN_DIR')
 TOMO_DIR = config.get('paths', 'TOMO_DIR')
+DEPTHMODELS_DIR = config.get('paths', 'DEPTHMODELS_DIR')
+
+# dir of the Computer Programs in Seismology (can be None)
+COMPUTER_PROGRAMS_IN_SEISMOLOGY_DIR = config.get('paths',
+                                                 'COMPUTER_PROGRAMS_IN_SEISMOLOGY_DIR')
 
 # ---------------
 # maps parameters

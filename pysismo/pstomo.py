@@ -363,6 +363,24 @@ class Grid:
         return s.format(self.xmin, self.get_xmax(), self.xstep,
                         self.ymin, self.get_ymax(), self.ystep)
 
+    def __eq__(self, other):
+        """
+        @type other: Grid
+        """
+        try:
+            samegrids = (self.xmin == other.xmin and
+                         self.xstep == other.xstep and
+                         self.nx == other.nx and
+                         self.ymin == other.ymin and
+                         self.ystep == other.ystep and
+                         self.ny == other.ny)
+            return samegrids
+        except:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def get_xmax(self):
         return self.xmin + (self.nx - 1) * self.xstep
 
