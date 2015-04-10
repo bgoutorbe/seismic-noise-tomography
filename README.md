@@ -49,6 +49,10 @@ dispersion curves,
  inversion is performed in the first pass in order to detect and reject outliers
  from the second pass.
  
+- `1d_models.py` takes dispersion maps as input and invert them for a 1-D
+  shear velocity model at selected locations, using a Markov chain Monte Carlo
+  method to sample to posterior distribution of the model's parameters.
+ 
 The scripts rely on the Python package `pysismo`, which must thus be located
 in a place included in your PATH (or PYTHONPATH) environment variable. The easiest
 choice is of course to place it in the same folder as the scripts.
@@ -72,6 +76,9 @@ analysis (FTAN) with phase-matched filtering described in Levshin and Ritzwoller
 and Bensen et al. (2007).
 The tomographic inversion implements the linear inversion procedure 
 with norm penalization and spatial smoothing of Barmin et al. (2001).
+The Markov chain Monte Carlo method is described by Mosegaard and Tarantola (1995), 
+and the forward modelling is taken care of by the Computer Programs in Seimology 
+(Herrmann, 2013).
 
 - Barmin, M. P., Ritzwoller, M. H. and Levshin, A. L. (2001). 
 A fast and reliable method for surface wave tomography. 
@@ -85,8 +92,17 @@ reliable broad-band surface wave dispersion measurements.
 \[[journal](http://onlinelibrary.wiley.com/doi/10.1111/j.1365-246X.2007.03374.x/abstract)\]
 \[[pdf](http://ciei.colorado.edu/pubs/2007/2.pdf)\]
 
+- Herrmann, R. B., 2013. Computer Programs in Seismology: an evolving tool for 
+instruction and research, *Seismol. Res. Let.*, **84**(6), p. 1081-1088
+doi: 10.1785/0220110096
+\[[pdf](http://srl.geoscienceworld.org/content/84/6/1081.full.pdf+html)\]
 - Levshin, A. L. and Ritzwoller, M. H. (2001). Automated detection, extraction, 
 and measurement of regional surface waves. *Pure Appl. Geophys.*, **158**, 
 p. 1531–1545. doi:10.1007/PL00001233
 \[[journal](http://link.springer.com/chapter/10.1007%2F978-3-0348-8264-4_11)\]
 \[[pdf](http://ciei.colorado.edu/pubs/pageoph_01/Levshin_Ritzwoller_pag2001.pdf)\]
+
+- Mosegaard, K. and Tarantola, A. (1995) Monte Carlo sampling of solutions to inverse
+problems, *J. Geophys. Res.*, **100**(B7), p. 12431–12447
+\[[journal](http://onlinelibrary.wiley.com/doi/10.1029/94JB03097/abstract)\]
+\[[pdf](http://www.ipgp.fr/~tarantola/Files/Professional/Papers_PDF/MonteCarlo_latex.pdf)\]
