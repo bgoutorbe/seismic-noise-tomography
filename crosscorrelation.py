@@ -95,6 +95,14 @@ import os
 import sys
 import warnings
 import datetime as dt
+import itertools as it
+import obspy.signal.cross_correlation
+
+# turn on multiprocessing? With how many concurrent processes?
+MULTIPROCESSING = True
+NB_PROCESSES = None  # set None to let multiprocessing module decide
+if MULTIPROCESSING:
+    import multiprocessing as mp
 
 # ====================================================
 # parsing configuration file to import some parameters
@@ -190,9 +198,6 @@ dates = [FIRSTDAY + dt.timedelta(days=i) for i in range(nday)]
 for date in dates:
     print "\nProcessing data of day ", date
 
-    # Initializing dict of current date's traces, {station name: trace}
-    tracedict = {}
-
     # loop on stations appearing in subdir corresponding to current month
     month_subdir = '{year}-{month:02d}'.format(year=date.year, month=date.month)
     month_stations = sorted(sta for sta in stations if month_subdir in sta.subdirs)
@@ -202,20 +207,18 @@ for date in dates:
         month_stations = [sta for sta in month_stations
                           if sta.name in CROSSCORR_STATIONS_SUBSET]
 
-    # getting processed trace for each station at current date
-    for istation, station in enumerate(month_stations):
+    def preprocessed_trace(station):
+        """
+        Preparing func that returns processed trace of station at the
+        current date: processing includes band-pass filtering,
+        demeaning, detrending, downsampling, time-normalization and
+        spectral whitening (see pscrosscorr.preprocessed_trace()'s doc)
 
-        if station == month_stations[-1] and not tracedict:
-            # no need to continue with only one station
-            s = '[no data: skipping remaining station {}.{}]'
-            print s.format(station.network, station.name),
-            continue
-
-        # getting processed trace of station at the current date:
-        # processing includes band-pass filtering, demeaning,
-        # detrending, downsampling, time-normalization and
-        # spectral whitening (see function's doc)
+        Function is ready to be parallelized, if required.
+        """
         try:
+            # output messages are delayed in case of multiprocessing,
+            # for messages not to get mixed up
             trace = pscrosscorr.preprocessed_trace(
                 station=station,
                 date=date,
@@ -233,25 +236,87 @@ for date in dates:
                 onebit_norm=ONEBIT_NORM,
                 window_time=WINDOW_TIME,
                 window_freq=WINDOW_FREQ,
-                verbose=True)
-        except pserrors.CannotPreprocess:
+                verbose=not MULTIPROCESSING)
+        except pserrors.CannotPreprocess as err:
             # cannot preprocess if daily fill < *minfill*, no instrument
             # response was found etc. (see function's doc)
-            continue
+            trace = None
+            msg = '{}: skipping'.format(err.message)
+        except Exception as err:
+            # unhandled exception!
+            trace = None
+            msg = 'Unhandled error: {}'.format(err.message)
+        else:
+            msg = 'ok'
 
-        # adding processed trace to dict of traces: {station name: trace}
-        tracedict[station.name] = trace
+        if MULTIPROCESSING or 'Unhandled' in msg:
+            # printing output message now in case of multiprocessing
+            # or of error unhandled by pscrosscorr.preprocessed_trace()
+            print '{}.{} [{}] '.format(station.network, station.name, msg),
+
+        return trace
+
+    # getting processed trace for each station at current date
+    t0 = dt.datetime.now()
+    if MULTIPROCESSING:
+        # multiprocessing turned on: one process per station
+        pool = mp.Pool(NB_PROCESSES)
+        traces = pool.map(preprocessed_trace, month_stations)
+        pool.close()
+        pool.join()
+    else:
+        # multiprocessing turned off: processing stations one after another
+        traces = [preprocessed_trace(s) for s in month_stations]
+
+    # setting up dict of current date's traces, {station: trace}
+    tracedict = {s.name: trace for s, trace in zip(month_stations, traces) if trace}
+
+    delta = (dt.datetime.now() - t0).total_seconds()
+    print "\nProcessed stations in {:.1f} seconds".format(delta)
 
     # stacking cross-correlations of the current day
     if len(tracedict) < 2:
-        print "\nNo cross-correlation for this day"
+        print "No cross-correlation for this day"
         continue
 
-    print '\nStacking cross-correlations'
+    t0 = dt.datetime.now()
+
+    xcorrdict = {}
+    if MULTIPROCESSING:
+        # if multiprocessing is turned on, we pre-calculate cross-correlation
+        # arrays between pairs of stations (one process per pair) and feed
+        # them to xc.add() (which won't have to recalculate them)
+        print "Pre-calculating cross-correlation arrays"
+
+        def xcorr_func(pair):
+            """
+            Preparing func that returns cross-correlation array
+            beween two traces
+            """
+            (s1, tr1), (s2, tr2) = pair
+            print '{}-{} '.format(s1, s2),
+            shift = int(CROSSCORR_TMAX / PERIOD_RESAMPLE)
+            xcorr = obspy.signal.cross_correlation.xcorr(
+                tr1, tr2, shift_len=shift, full_xcorr=True)[2]
+            return xcorr
+
+        pairs = list(it.combinations(sorted(tracedict.items()), 2))
+        pool = mp.Pool(NB_PROCESSES)
+        xcorrs = pool.map(xcorr_func, pairs)
+        pool.close()
+        pool.join()
+        xcorrdict = {(s1, s2): xcorr for ((s1, _), (s2, _)), xcorr in zip(pairs, xcorrs)}
+        print
+
+    print "Stacking cross-correlations"
     xc.add(tracedict=tracedict,
            stations=stations,
            xcorr_tmax=CROSSCORR_TMAX,
-           verbose=True)
+           verbose=not MULTIPROCESSING,
+           xcorrdict=xcorrdict)
+
+    delta = (dt.datetime.now() - t0).total_seconds()
+    print "Calculated and stacked cross-correlations in {:.1f} seconds".format(delta)
 
 # exporting cross-correlations
 if not xc.pairs():

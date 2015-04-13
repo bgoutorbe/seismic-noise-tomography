@@ -217,7 +217,7 @@ class CrossCorrelation:
         result.monthxcs = [copy.copy(mxc) for mxc in self.monthxcs]
         return result
 
-    def add(self, tr1, tr2):
+    def add(self, tr1, tr2, xcorr=None):
         """
         Stacks cross-correlation between 2 traces
         @type tr1: L{obspy.core.trace.Trace}
@@ -232,8 +232,10 @@ class CrossCorrelation:
             raise Exception(s.format(tr1=tr1, tr2=tr2))
 
         # cross-correlation
-        xcorr = obspy.signal.cross_correlation.xcorr(
-            tr1, tr2, shift_len=self._get_xcorr_nmax(), full_xcorr=True)[2]
+        if xcorr is None:
+            # calculating cross-corr using obspy, if not already given
+            xcorr = obspy.signal.cross_correlation.xcorr(
+                tr1, tr2, shift_len=self._get_xcorr_nmax(), full_xcorr=True)[2]
         # verifying that we don't have NaN
         if np.any(np.isnan(xcorr)):
             s = u"Got NaN in cross-correlation between traces:\n{tr1}\n{tr2}"
@@ -1472,7 +1474,11 @@ class CrossCorrelationCollection(AttribDict):
     Collection of cross-correlations
     = AttribDict{station1.name: AttribDict {station2.name: instance of CrossCorrelation}}
 
-    Usage: self[s1][s2]... or self.s1.s2...
+    AttribDict is a dict (defined in obspy.core) whose keys are also
+    attributes. This means that a cross-correlation between a pair
+    of stations STA01-STA02 can be accessed both ways:
+    - self['STA01']['STA02'] (easier in regular code)
+    - self.STA01.STA02 (easier in an interactive session)
     """
 
     def __init__(self):
@@ -1587,9 +1593,13 @@ class CrossCorrelationCollection(AttribDict):
 
         return SNRarraydict
 
-    def add(self, tracedict, stations, xcorr_tmax, verbose=False):
+    def add(self, tracedict, stations, xcorr_tmax, verbose=False, xcorrdict=None):
         """
-        Stacks cross-correlation from a dict of {station.name: Trace}.
+        Stacks cross-correlations between pairs of stations
+        from a dict of {station.name: Trace} (in *tracedict*).
+
+        You can provide pre-calculated cross-correlations in *xcorrdict*
+        = dict {(station1.name, station2.name): numpy array containing cross-corr}
 
         Initializes self[station1][station2] as an instance of CrossCorrelation
         if the pair station1-station2 is not in self
@@ -1599,6 +1609,8 @@ class CrossCorrelationCollection(AttribDict):
         @type xcorr_tmax: float
         @type verbose: bool
         """
+        if not xcorrdict:
+            xcorrdict = {}
 
         stationtrace_pairs = it.combinations(sorted(tracedict.items()), 2)
         for (s1name, tr1), (s2name, tr2) in stationtrace_pairs:
@@ -1627,7 +1639,9 @@ class CrossCorrelationCollection(AttribDict):
 
             # stacking cross-correlation
             try:
-                self[s1name][s2name].add(tr1, tr2)
+                # getting pre-calculated cross-corr, if provided
+                xcorr = xcorrdict.get((s1name, s2name), None)
+                self[s1name][s2name].add(tr1, tr2, xcorr=xcorr)
             except pserrors.NaNError:
                 # got NaN
                 s = "Warning: got NaN in cross-corr between {s1}-{s2} -> skipping"
@@ -2037,29 +2051,34 @@ class CrossCorrelationCollection(AttribDict):
             xc = self[s1][s2]
             assert isinstance(xc, CrossCorrelation)
 
-            # complete FTAN analysis
-            rawampl, rawvg, cleanampl, cleanvg = xc.FTAN_complete(
-                whiten=whiten, months=monthyears,
-                vmin=vmin, vmax=vmax,
-                signal2noise_trail=signal2noise_trail,
-                noise_window_size=noise_window_size,
-                **kwargs)
+            try:
+                # complete FTAN analysis
+                rawampl, rawvg, cleanampl, cleanvg = xc.FTAN_complete(
+                    whiten=whiten, months=monthyears,
+                    vmin=vmin, vmax=vmax,
+                    signal2noise_trail=signal2noise_trail,
+                    noise_window_size=noise_window_size,
+                    **kwargs)
 
-            # plotting raw-clean FTAN
-            fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg,
-                               whiten=whiten,
-                               normalize_ampl=normalize_ampl,
-                               logscale=logscale,
-                               showplot=False,
-                               vmin=vmin, vmax=vmax,
-                               signal2noise_trail=signal2noise_trail,
-                               noise_window_size=noise_window_size,
-                               **kwargs)
-            pdf.savefig(fig)
-            plt.close()
+                # plotting raw-clean FTAN
+                fig = xc.plot_FTAN(rawampl, rawvg, cleanampl, cleanvg,
+                                   whiten=whiten,
+                                   normalize_ampl=normalize_ampl,
+                                   logscale=logscale,
+                                   showplot=False,
+                                   vmin=vmin, vmax=vmax,
+                                   signal2noise_trail=signal2noise_trail,
+                                   noise_window_size=noise_window_size,
+                                   **kwargs)
+                pdf.savefig(fig)
+                plt.close()
 
-            # appending clean vg curve
-            cleanvgcurves.append(cleanvg)
+                # appending clean vg curve
+                cleanvgcurves.append(cleanvg)
+
+            except Exception as err:
+                # something went wrong with this FTAN
+                print "\nGot unexpected error:\n\n{}\n\nSKIPPING PAIR!".format(err)
 
         print "\nSaving files..."
 
