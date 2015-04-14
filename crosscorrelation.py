@@ -96,6 +96,7 @@ import sys
 import warnings
 import datetime as dt
 import itertools as it
+import pickle
 import obspy.signal.cross_correlation
 
 # turn on multiprocessing? With how many concurrent processes?
@@ -196,6 +197,14 @@ xc = pscrosscorr.CrossCorrelationCollection()
 nday = (LASTDAY - FIRSTDAY).days + 1
 dates = [FIRSTDAY + dt.timedelta(days=i) for i in range(nday)]
 for date in dates:
+
+    # exporting the collection of cross-correlations after the end of each
+    # processed month (allows to restart after a crash from that date)
+    if date.day == 1:
+        with open(u'{}.part.pickle'.format(OUTFILESPATH), 'wb') as f:
+            print "\nExporting cross-correlations calculated until now to: " + f.name
+            pickle.dump(xc, f, protocol=2)
+
     print "\nProcessing data of day ", date
 
     # loop on stations appearing in subdir corresponding to current month
@@ -241,11 +250,11 @@ for date in dates:
             # cannot preprocess if daily fill < *minfill*, no instrument
             # response was found etc. (see function's doc)
             trace = None
-            msg = '{}: skipping'.format(err.message)
+            msg = '{}: skipping'.format(err)
         except Exception as err:
             # unhandled exception!
             trace = None
-            msg = 'Unhandled error: {}'.format(err.message)
+            msg = 'Unhandled error: {}'.format(err)
         else:
             msg = 'ok'
 
@@ -312,8 +321,8 @@ for date in dates:
     xc.add(tracedict=tracedict,
            stations=stations,
            xcorr_tmax=CROSSCORR_TMAX,
-           verbose=not MULTIPROCESSING,
-           xcorrdict=xcorrdict)
+           xcorrdict=xcorrdict,
+           verbose=not MULTIPROCESSING)
 
     delta = (dt.datetime.now() - t0).total_seconds()
     print "Calculated and stacked cross-correlations in {:.1f} seconds".format(delta)
@@ -321,14 +330,19 @@ for date in dates:
 # exporting cross-correlations
 if not xc.pairs():
     print "No cross-correlation could be calculated: nothing to export!"
-    sys.exit()
+else:
+    # exporting to binary and ascii files
+    xc.export(outprefix=OUTFILESPATH, stations=stations, verbose=True)
 
-# exporting to binary and ascii files
-xc.export(outprefix=OUTFILESPATH, stations=stations, verbose=True)
+    # exporting to png file
+    print "Exporting cross-correlations to file: {}.png".format(OUTFILESPATH)
+    # optimizing time-scale: max time = max distance / vmin (vmin = 2.5 km/s)
+    maxdist = max([xc[s1][s2].dist() for s1, s2 in xc.pairs()])
+    maxt = min(CROSSCORR_TMAX, maxdist / 2.5)
+    xc.plot(xlim=(-maxt, maxt), outfile=OUTFILESPATH + '.png', showplot=False)
 
-# exporting to png file
-print "Exporting cross-correlations to file: {}.png".format(OUTFILESPATH)
-# optimizing time-scale: max time = max distance / vmin (vmin = 2.5 km/s)
-maxdist = max([xc[s1][s2].dist() for s1, s2 in xc.pairs()])
-maxt = min(CROSSCORR_TMAX, maxdist / 2.5)
-xc.plot(xlim=(-maxt, maxt), outfile=OUTFILESPATH + '.png', showplot=False)
+# removing file containing periodical exports of cross-corrs
+try:
+    os.remove(u'{}.part.pickle'.format(OUTFILESPATH))
+except:
+    pass

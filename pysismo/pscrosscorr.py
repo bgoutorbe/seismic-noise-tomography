@@ -233,9 +233,10 @@ class CrossCorrelation:
 
         # cross-correlation
         if xcorr is None:
-            # calculating cross-corr using obspy, if not already given
+            # calculating cross-corr using obspy, if not already provided
             xcorr = obspy.signal.cross_correlation.xcorr(
                 tr1, tr2, shift_len=self._get_xcorr_nmax(), full_xcorr=True)[2]
+
         # verifying that we don't have NaN
         if np.any(np.isnan(xcorr)):
             s = u"Got NaN in cross-correlation between traces:\n{tr1}\n{tr2}"
@@ -1593,7 +1594,7 @@ class CrossCorrelationCollection(AttribDict):
 
         return SNRarraydict
 
-    def add(self, tracedict, stations, xcorr_tmax, verbose=False, xcorrdict=None):
+    def add(self, tracedict, stations, xcorr_tmax, xcorrdict=None, verbose=False):
         """
         Stacks cross-correlations between pairs of stations
         from a dict of {station.name: Trace} (in *tracedict*).
