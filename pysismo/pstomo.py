@@ -545,7 +545,6 @@ class Grid:
         return np.int_((y - self.ymin) / self.ystep)
 
 
-# noinspection PyShadowingNames,PyTypeChecker
 class VelocityMap:
     """
     Class taking care of the inversion of velocities between
@@ -750,10 +749,10 @@ class VelocityMap:
         # spatial grid for tomographic inversion
         lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
         lons2, lats2 = zip(*[c.station2.coord for c in self.disp_curves])
-        lonmin = np.floor(min(lons1 + lons2))
-        nlon = np.ceil((max(lons1 + lons2) - lonmin) / lonstep) + 1
-        latmin = np.floor(min(lats1 + lats2))
-        nlat = np.ceil((max(lats1 + lats2) - latmin) / latstep) + 1
+        lonmin = np.floor(min(lons1 + lons2) - EPS)
+        nlon = np.ceil((max(lons1 + lons2) + EPS - lonmin) / lonstep) + 1
+        latmin = np.floor(min(lats1 + lats2) - EPS)
+        nlat = np.ceil((max(lats1 + lats2) + EPS - latmin) / latstep) + 1
         self.grid = Grid(lonmin, lonstep, nlon, latmin, latstep, nlat)
 
         # geodesic paths associated with pairs of stations of dispersion curves

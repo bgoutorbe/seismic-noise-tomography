@@ -2256,20 +2256,117 @@ class CrossCorrelationCollection(AttribDict):
         return reftimearray
 
 
-def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(),
-                       skiplocs=CROSSCORR_SKIPLOCS, minfill=MINFILL,
-                       freqmin=FREQMIN, freqmax=FREQMAX,
-                       freqmin_earthquake=FREQMIN_EARTHQUAKE,
-                       freqmax_earthquake=FREQMAX_EARTHQUAKE,
-                       corners=CORNERS, zerophase=ZEROPHASE,
-                       period_resample=PERIOD_RESAMPLE,
-                       onebit_norm=ONEBIT_NORM,
-                       window_time=WINDOW_TIME, window_freq=WINDOW_FREQ,
-                       verbose=False):
+def get_merged_trace(station, date, skiplocs=CROSSCORR_SKIPLOCS, minfill=MINFILL):
     """
-    Returns a processed trace (ready to be cross-correlated)
-    from a selected station and date, by applying the following
-    steps:
+    Returns one trace extracted from selected station, at selected date
+    (+/- 1 hour on each side to avoid edge effects during subsequent
+    processing).
+
+    Traces whose location belongs to *skiplocs* are discarded, then
+    if several locations remain, only the first is kept. Finally,
+    if several traces (with the same location) remain, they are
+    merged, WITH GAPS FILLED USING LINEAR INTERPOLATION.
+
+    Raises CannotPreprocess exception if:
+    - no trace remain after discarded the unwanted locations
+    - data fill is < *minfill*
+
+    @type station: L{psstation.Station}
+    @type date: L{datetime.date}
+    @param skiplocs: list of locations to discard in station's data
+    @type skiplocs: iterable
+    @param minfill: minimum data fill to keep trace
+    @rtype: L{Trace}
+    """
+
+    # getting station's stream at selected date
+    # (+/- one hour to avoid edge effects when removing response)
+    t0 = UTCDateTime(date)  # date at time 00h00m00s
+    st = read(pathname_or_url=station.getpath(date),
+              starttime=t0 - dt.timedelta(hours=1),
+              endtime=t0 + dt.timedelta(days=1, hours=1))
+
+    # removing traces of stream from locations to skip
+    for tr in [tr for tr in st if tr.stats.location in skiplocs]:
+        st.remove(tr)
+
+    if not st.traces:
+        # no remaining trace!
+        raise pserrors.CannotPreprocess("No trace")
+
+    # if more than one location, we retain only the first one
+    if len(set(tr.id for tr in st)) > 1:
+        select_loc = sorted(set(tr.stats.location for tr in st))[0]
+        for tr in [tr for tr in st if tr.stats.location != select_loc]:
+            st.remove(tr)
+
+    # Data fill for current date
+    fill = psutils.get_fill(st, starttime=t0, endtime=t0 + dt.timedelta(days=1))
+    if fill < minfill:
+        # not enough data
+        raise pserrors.CannotPreprocess("{:.0f}% fill".format(fill * 100))
+
+    # Merging traces, FILLING GAPS WITH LINEAR INTERP
+    st.merge(fill_value='interpolate')
+    trace = st[0]
+    return trace
+
+
+def get_or_attach_response(trace, dataless_inventories=(), xml_inventories=()):
+    """
+    Returns or attach instrumental response, from dataless seed inventories
+    (as returned by psstation.get_dataless_inventories()) and/or StationXML
+    inventories (as returned by psstation.get_stationxml_inventories()).
+    If a response if found in a dataless inventory, then a dict of poles
+    and zeros is returned. If a response is found in a StationXML
+    inventory, then it is directly attached to the trace and nothing is
+    returned.
+
+    Raises CannotPreprocess exception if no instrumental response is found.
+
+    @type trace: L{Trace}
+    @param dataless_inventories: inventories from dataless seed files (as returned by
+                                 psstation.get_dataless_inventories())
+    @type dataless_inventories: list of L{obspy.xseed.parser.Parser}
+    @param xml_inventories: inventories from StationXML files (as returned by
+                            psstation.get_stationxml_inventories())
+    @type xml_inventories: list of L{obspy.station.inventory.Inventory}
+    """
+
+    # looking for instrument response...
+    try:
+        # ...first in dataless seed inventories
+        paz = psstation.get_paz(channelid=trace.id,
+                                t=trace.stats.starttime,
+                                inventories=dataless_inventories)
+        return paz
+    except pserrors.NoPAZFound:
+        # ... then in dataless seed inventories, replacing 'BHZ' with 'HHZ'
+        # in trace's id (trick to make code work with Diogo's data)
+        try:
+            paz = psstation.get_paz(channelid=trace.id.replace('BHZ', 'HHZ'),
+                                    t=trace.stats.starttime,
+                                    inventories=dataless_inventories)
+            return paz
+        except pserrors.NoPAZFound:
+            # ...finally in StationXML inventories
+            try:
+                trace.attach_response(inventories=xml_inventories)
+            except:
+                # no response found!
+                raise pserrors.CannotPreprocess("No response found")
+
+
+def preprocess_trace(trace, paz=None, freqmin=FREQMIN, freqmax=FREQMAX,
+                     freqmin_earthquake=FREQMIN_EARTHQUAKE,
+                     freqmax_earthquake=FREQMAX_EARTHQUAKE,
+                     corners=CORNERS, zerophase=ZEROPHASE,
+                     period_resample=PERIOD_RESAMPLE,
+                     onebit_norm=ONEBIT_NORM,
+                     window_time=WINDOW_TIME, window_freq=WINDOW_FREQ):
+    """
+    Preprocesses a trace (so that it is ready to be cross-correlated),
+    by applying the following steps:
     - removal of instrument response, mean and trend
     - band-pass filtering between *freqmin*-*freqmax*
     - downsampling to *period_resample* secs
@@ -2278,23 +2375,15 @@ def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(
     - spectral whitening (if running mean normalization)
 
     Raises CannotPreprocess exception if:
-    - data fill is < *minfill*
-    - no instrumental response is found
     - trace only contains 0 (happens sometimes...)
     - a normalization weight is 0 or NaN
     - a Nan appeared in trace data
 
-    @type station: L{psstation.Station}
-    @type date: L{datetime.date}
-    @param dataless_inventories: inventories from dataless seed files (as returned by
-                                 psstation.get_dataless_inventories())
-    @type dataless_inventories: list of L{obspy.xseed.parser.Parser}
-    @param xml_inventories: inventories from StationXML files (as returned by
-                            psstation.get_stationxml_inventories())
-    @type dataless_inventories: list of L{obspy.station.inventory.Inventory}
-    @param skiplocs: list of locations to discard in station's data
-    @type skiplocs: iterable
-    @param minfill: minimum data fill to keep trace
+    Note that the processing steps are performed in-place.
+
+    @type trace: L{Trace}
+    @param paz: poles and zeros of instrumental response
+                (set None if response is directly attached to trace)
     @param freqmin: low frequency of the band-pass filter
     @param freqmax: high frequency of the band-pass filter
     @param freqmin_earthquake: low frequency of the earthquake band
@@ -2310,74 +2399,7 @@ def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(
                         in the earthquake band (for the time-normalization)
     @param window_freq: width of the window to calculate the running mean
                         of the amplitude spectrum (for the spectral whitening)
-    @rtype: L{obspy.core.trace.Trace}
     """
-
-    if verbose:
-        print "{}.{}".format(station.network, station.name),
-
-    # ========================================================
-    # preliminary steps to get one (merged) trace from station
-    # at selected date, checking data fill in the process
-    # ========================================================
-
-    # getting station's stream at selected date
-    # (+/- one hour to avoid edge effects when removing response)
-    t0 = UTCDateTime(date.year, date.month, date.day)  # date at time 00h00m00s
-    st = read(pathname_or_url=station.getpath(date),
-              starttime=t0 - dt.timedelta(hours=1),
-              endtime=t0 + dt.timedelta(days=1, hours=1))
-
-    # removing traces of stream from locations to skip
-    for tr in [tr for tr in st if tr.stats.location in skiplocs]:
-        st.remove(tr)
-
-    # if more than one location, we retain only the first one
-    if len(set(tr.id for tr in st)) > 1:
-        select_loc = sorted(set(tr.stats.location for tr in st))[0]
-        for tr in [tr for tr in st if tr.stats.location != select_loc]:
-            st.remove(tr)
-
-    # Data fill for current date
-    fill = psutils.get_fill(st, starttime=t0, endtime=t0 + dt.timedelta(days=1))
-    if fill < minfill:
-        # not enough data
-        if verbose:
-            print "[{:.0f}% fill: skipping]".format(fill * 100),
-        raise pserrors.CannotPreprocess("{:.0f}% fill".format(fill * 100))
-
-    # Merging traces, FILLING GAPS WITH LINEAR INTERP
-    st.merge(fill_value='interpolate')
-    trace = st[0]
-    assert isinstance(trace, Trace)  # to enable auto-completion in PyCharm
-
-    # ===============================
-    # Looking for instrument response
-    # ===============================
-
-    # looking for instrument response...
-    paz = None
-    try:
-        # ...first in dataless seed inventories
-        paz = psstation.get_paz(channelid=trace.id,
-                                t=t0,
-                                inventories=dataless_inventories)
-    except pserrors.NoPAZFound:
-        # ... then in dataless seed inventories, replacing 'BHZ' with 'HHZ'
-        # in trace's id (trick to make code work with Diogo's data)
-        try:
-            paz = psstation.get_paz(channelid=trace.id.replace('BHZ', 'HHZ'),
-                                    t=t0,
-                                    inventories=dataless_inventories)
-        except pserrors.NoPAZFound:
-            # ...finally in StationXML inventories
-            try:
-                trace.attach_response(inventories=xml_inventories)
-            except:
-                # no response found!
-                if verbose:
-                    print '[no response found: skipping]',
-                raise pserrors.CannotPreprocess("No response found")
 
     # ============================================
     # Removing instrument response, mean and trend
@@ -2408,14 +2430,14 @@ def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(
         trace.remove_response(output="VEL", zero_mean=True)
 
     # trimming, demeaning, detrending
+    midt = trace.stats.starttime + (trace.stats.endtime - trace.stats.starttime) / 2.0
+    t0 = UTCDateTime(midt.date)  # date of trace, at time 00h00m00s
     trace.trim(starttime=t0, endtime=t0 + dt.timedelta(days=1))
     trace.detrend(type='constant')
     trace.detrend(type='linear')
 
     if np.all(trace.data == 0.0):
         # no data -> skipping trace
-        if verbose:
-            print "[only zeros: skipping]",
         raise pserrors.CannotPreprocess("Only zeros")
 
     # =========
@@ -2461,14 +2483,12 @@ def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(
                                      mask=mask)
         if np.ma.isMA(trcopy.data):
             # turning time-normalization weights into a masked array
-            if verbose:
-                print "[warning: trace's data is a masked array]",
+            s = "[warning: {}.{} trace's data is a masked array]"
+            print s.format(trace.stats.network, trace.stats.station),
             tnorm_w = np.ma.masked_array(tnorm_w, trcopy.data.mask)
 
         if np.any((tnorm_w == 0.0) | np.isnan(tnorm_w)):
             # illegal normalizing value -> skipping trace
-            if verbose:
-                print "[zero or NaN normalization weight: skipping]",
             raise pserrors.CannotPreprocess("Zero or NaN normalization weight")
 
         # time-normalization
@@ -2493,14 +2513,7 @@ def preprocessed_trace(station, date, dataless_inventories=(), xml_inventories=(
 
     # Verifying that we don't have nan in trace data
     if np.any(np.isnan(trace.data)):
-        if verbose:
-            print "[got NaN in trace data: skipping]",
         raise pserrors.CannotPreprocess("Got NaN in trace data")
-
-    # returning processed trace, ready to be cross-correlated
-    if verbose:
-        print "[ok]",
-    return trace
 
 
 def load_pickled_xcorr(pickle_file):

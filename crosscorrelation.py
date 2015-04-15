@@ -168,21 +168,19 @@ print 'Results will be exported to files:\n"{}" (+ extension)\n'.format(OUTFILES
 
 # Reading inventories in dataless seed and/or StationXML files
 dataless_inventories = []
-xml_inventories = []
 if USE_DATALESSPAZ:
-    warnings.filterwarnings('ignore')
-    dataless_inventories = psstation.get_dataless_inventories(
-        dataless_dir=DATALESS_DIR,
-        verbose=True)
-    warnings.filterwarnings('default')
-    print
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        dataless_inventories = psstation.get_dataless_inventories(DATALESS_DIR,
+                                                                  verbose=True)
+
+xml_inventories = []
 if USE_STATIONXML:
-    xml_inventories = psstation.get_stationxml_inventories(
-        stationxml_dir=STATIONXML_DIR,
-        verbose=True)
-    print
+    xml_inventories = psstation.get_stationxml_inventories(STATIONXML_DIR,
+                                                           verbose=True)
 
 # Getting list of stations
+print
 stations = psstation.get_stations(mseed_dir=MSEED_DIR,
                                   xml_inventories=xml_inventories,
                                   dataless_inventories=dataless_inventories,
@@ -205,7 +203,7 @@ for date in dates:
             print "\nExporting cross-correlations calculated until now to: " + f.name
             pickle.dump(xc, f, protocol=2)
 
-    print "\nProcessing data of day ", date
+    print "\nProcessing data of day {}".format(date)
 
     # loop on stations appearing in subdir corresponding to current month
     month_subdir = '{year}-{month:02d}'.format(year=date.year, month=date.month)
@@ -216,25 +214,53 @@ for date in dates:
         month_stations = [sta for sta in month_stations
                           if sta.name in CROSSCORR_STATIONS_SUBSET]
 
-    def preprocessed_trace(station):
-        """
-        Preparing func that returns processed trace of station at the
-        current date: processing includes band-pass filtering,
-        demeaning, detrending, downsampling, time-normalization and
-        spectral whitening (see pscrosscorr.preprocessed_trace()'s doc)
+    # =============================================================
+    # preparing functions that get one merged trace per station
+    # and pre-process trace, ready to be parallelized (if required)
+    # =============================================================
 
-        Function is ready to be parallelized, if required.
+    def get_merged_trace(station):
+        """
+        Preparing func that returns one trace from selected station,
+        at current date. Function is ready to be parallelized.
         """
         try:
-            # output messages are delayed in case of multiprocessing,
-            # for messages not to get mixed up
-            trace = pscrosscorr.preprocessed_trace(
-                station=station,
-                date=date,
-                dataless_inventories=dataless_inventories,
-                xml_inventories=xml_inventories,
-                skiplocs=CROSSCORR_SKIPLOCS,
-                minfill=MINFILL,
+            trace = pscrosscorr.get_merged_trace(station=station,
+                                                 date=date,
+                                                 skiplocs=CROSSCORR_SKIPLOCS,
+                                                 minfill=MINFILL)
+            errmsg = None
+        except pserrors.CannotPreprocess as err:
+            # cannot preprocess if no trace or daily fill < *minfill*
+            trace = None
+            errmsg = '{}: skipping'.format(err)
+        except Exception as err:
+            # unhandled exception!
+            trace = None
+            errmsg = 'Unhandled error: {}'.format(err)
+
+        if errmsg:
+            # printing error message
+            print '{}.{} [{}] '.format(station.network, station.name, errmsg),
+
+        return trace
+
+    def preprocessed_trace((trace, response)):
+        """
+        Preparing func that returns processed trace: processing includes
+        removal of instrumental response, band-pass filtering, demeaning,
+        detrending, downsampling, time-normalization and spectral whitening
+        (see pscrosscorr.preprocess_trace()'s doc)
+
+        Function is ready to be parallelized.
+        """
+        if not trace or response is False:
+            return
+
+        try:
+            pscrosscorr.preprocess_trace(
+                trace=trace,
+                paz=response,
                 freqmin=FREQMIN,
                 freqmax=FREQMAX,
                 freqmin_earthquake=FREQMIN_EARTHQUAKE,
@@ -244,38 +270,89 @@ for date in dates:
                 period_resample=PERIOD_RESAMPLE,
                 onebit_norm=ONEBIT_NORM,
                 window_time=WINDOW_TIME,
-                window_freq=WINDOW_FREQ,
-                verbose=not MULTIPROCESSING)
+                window_freq=WINDOW_FREQ)
+            msg = 'ok'
         except pserrors.CannotPreprocess as err:
-            # cannot preprocess if daily fill < *minfill*, no instrument
-            # response was found etc. (see function's doc)
+            # cannot preprocess if no instrument response was found,
+            # trace data are not consistent etc. (see function's doc)
             trace = None
             msg = '{}: skipping'.format(err)
         except Exception as err:
             # unhandled exception!
             trace = None
             msg = 'Unhandled error: {}'.format(err)
-        else:
-            msg = 'ok'
 
-        if MULTIPROCESSING or 'Unhandled' in msg:
-            # printing output message now in case of multiprocessing
-            # or of error unhandled by pscrosscorr.preprocessed_trace()
-            print '{}.{} [{}] '.format(station.network, station.name, msg),
+        # printing output (error or ok) message
+        print '{}.{} [{}] '.format(trace.stats.network, trace.stats.station, msg),
 
+        # although processing is performed in-place, trace is returned
+        # in order to get it back after multi-processing
         return trace
 
-    # getting processed trace for each station at current date
+    # ====================================
+    # getting one merged trace per station
+    # ====================================
+
     t0 = dt.datetime.now()
     if MULTIPROCESSING:
         # multiprocessing turned on: one process per station
         pool = mp.Pool(NB_PROCESSES)
-        traces = pool.map(preprocessed_trace, month_stations)
+        traces = pool.map(get_merged_trace, month_stations)
         pool.close()
         pool.join()
     else:
         # multiprocessing turned off: processing stations one after another
-        traces = [preprocessed_trace(s) for s in month_stations]
+        traces = [get_merged_trace(s) for s in month_stations]
+
+    # =====================================================
+    # getting or attaching instrumental response
+    # (parallelization is difficult because of inventories)
+    # =====================================================
+
+    responses = []
+    for tr in traces:
+        if not tr:
+            responses.append(None)
+            continue
+
+        # responses elements can be (1) dict of PAZ if response found in
+        # dataless inventory, (2) None if response found in StationXML
+        # inventory (directly attached to trace) or (3) False if no
+        # response found
+
+        try:
+            response = pscrosscorr.get_or_attach_response(
+                trace=tr,
+                dataless_inventories=dataless_inventories,
+                xml_inventories=xml_inventories)
+            errmsg = None
+        except pserrors.CannotPreprocess as err:
+            # response not found
+            response = False
+            errmsg = '{}: skipping'.format(err)
+        except Exception as err:
+            # unhandled exception!
+            response = False
+            errmsg = 'Unhandled error: {}'.format(err)
+
+        responses.append(response)
+        if errmsg:
+            # printing error message
+            print '{}.{} [{}] '.format(tr.stats.network, tr.stats.station, errmsg),
+
+    # =================
+    # processing traces
+    # =================
+
+    if MULTIPROCESSING:
+        # multiprocessing turned on: one process per station
+        pool = mp.Pool(NB_PROCESSES)
+        traces = pool.map(preprocessed_trace, zip(traces, responses))
+        pool.close()
+        pool.join()
+    else:
+        # multiprocessing turned off: processing stations one after another
+        traces = [preprocessed_trace((tr, res)) for tr, res in zip(traces, responses)]
 
     # setting up dict of current date's traces, {station: trace}
     tracedict = {s.name: trace for s, trace in zip(month_stations, traces) if trace}
@@ -283,13 +360,15 @@ for date in dates:
     delta = (dt.datetime.now() - t0).total_seconds()
     print "\nProcessed stations in {:.1f} seconds".format(delta)
 
+    # ==============================================
     # stacking cross-correlations of the current day
+    # ==============================================
+
     if len(tracedict) < 2:
         print "No cross-correlation for this day"
         continue
 
     t0 = dt.datetime.now()
-
     xcorrdict = {}
     if MULTIPROCESSING:
         # if multiprocessing is turned on, we pre-calculate cross-correlation
