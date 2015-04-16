@@ -99,10 +99,12 @@ import itertools as it
 import pickle
 import obspy.signal.cross_correlation
 
-# turn on multiprocessing? With how many concurrent processes?
-MULTIPROCESSING = True
-NB_PROCESSES = None  # set None to let multiprocessing module decide
-if MULTIPROCESSING:
+# turn on multiprocessing to get one merged trace per station?
+# to preprocess trace? to cross-correlate traces?
+MULTIPROCESSING = {'merge trace': False, 'process trace': True, 'cross-corr': True}
+# how many concurrent processes? (set None to let multiprocessing module decide)
+NB_PROCESSES = None
+if any(MULTIPROCESSING.values()):
     import multiprocessing as mp
 
 # ====================================================
@@ -294,7 +296,7 @@ for date in dates:
     # ====================================
 
     t0 = dt.datetime.now()
-    if MULTIPROCESSING:
+    if MULTIPROCESSING['merge trace']:
         # multiprocessing turned on: one process per station
         pool = mp.Pool(NB_PROCESSES)
         traces = pool.map(get_merged_trace, month_stations)
@@ -344,7 +346,7 @@ for date in dates:
     # processing traces
     # =================
 
-    if MULTIPROCESSING:
+    if MULTIPROCESSING['process trace']:
         # multiprocessing turned on: one process per station
         pool = mp.Pool(NB_PROCESSES)
         traces = pool.map(preprocessed_trace, zip(traces, responses))
@@ -370,7 +372,7 @@ for date in dates:
 
     t0 = dt.datetime.now()
     xcorrdict = {}
-    if MULTIPROCESSING:
+    if MULTIPROCESSING['cross-corr']:
         # if multiprocessing is turned on, we pre-calculate cross-correlation
         # arrays between pairs of stations (one process per pair) and feed
         # them to xc.add() (which won't have to recalculate them)
@@ -401,7 +403,7 @@ for date in dates:
            stations=stations,
            xcorr_tmax=CROSSCORR_TMAX,
            xcorrdict=xcorrdict,
-           verbose=not MULTIPROCESSING)
+           verbose=not MULTIPROCESSING['cross-corr'])
 
     delta = (dt.datetime.now() - t0).total_seconds()
     print "Calculated and stacked cross-correlations in {:.1f} seconds".format(delta)
