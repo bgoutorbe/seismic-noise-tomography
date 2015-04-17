@@ -100,8 +100,10 @@ import pickle
 import obspy.signal.cross_correlation
 
 # turn on multiprocessing to get one merged trace per station?
-# to preprocess trace? to cross-correlate traces?
-MULTIPROCESSING = {'merge trace': False, 'process trace': True, 'cross-corr': True}
+# to preprocess trace? to stack cross-correlations?
+MULTIPROCESSING = {'merge trace': False,
+                   'process trace': True,
+                   'cross-corr': True}
 # how many concurrent processes? (set None to let multiprocessing module decide)
 NB_PROCESSES = None
 if any(MULTIPROCESSING.values()):

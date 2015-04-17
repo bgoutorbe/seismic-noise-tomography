@@ -524,8 +524,10 @@ class Grid:
         """
         x = np.array(x)
         # checking bounds
-        if np.any((x < self.xmin) | (x > self.get_xmax())):
-            raise Exception('x is out of bounds')
+        out_of_bounds = (x < self.xmin) | (x > self.get_xmax())
+        if np.any(out_of_bounds):
+            s = 'some x {} are out of bounds [{} - {}]'
+            raise Exception(s.format(x[out_of_bounds], self.xmin, self.get_xmax()))
 
         # index of closest left node
         return np.int_((x - self.xmin) / self.xstep)
@@ -538,8 +540,10 @@ class Grid:
         """
         y = np.array(y)
         # checking bounds
-        if np.any((y < self.ymin) | (y > self.get_ymax())):
-            raise Exception('y is out of bounds')
+        out_of_bounds = (y < self.ymin) | (y > self.get_ymax())
+        if np.any(out_of_bounds):
+            s = 'some y {} are out of bounds [{} - {}]'
+            raise Exception(s.format(y[out_of_bounds], self.ymin, self.get_ymax()))
 
         # index of closest bottom node
         return np.int_((y - self.ymin) / self.ystep)
@@ -746,13 +750,15 @@ class VelocityMap:
         self.Cinv = np.matrix(np.zeros((len(sigmav), len(sigmav))))
         np.fill_diagonal(self.Cinv, 1.0 / sigmad**2)
 
-        # spatial grid for tomographic inversion
+        # spatial grid for tomographic inversion (slightly enlarged to be
+        # sure that no path will fall outside)
         lons1, lats1 = zip(*[c.station1.coord for c in self.disp_curves])
         lons2, lats2 = zip(*[c.station2.coord for c in self.disp_curves])
-        lonmin = np.floor(min(lons1 + lons2) - EPS)
-        nlon = np.ceil((max(lons1 + lons2) + EPS - lonmin) / lonstep) + 1
-        latmin = np.floor(min(lats1 + lats2) - EPS)
-        nlat = np.ceil((max(lats1 + lats2) + EPS - latmin) / latstep) + 1
+        tol = 0.5
+        lonmin = np.floor(min(lons1 + lons2) - tol)
+        nlon = np.ceil((max(lons1 + lons2) + tol - lonmin) / lonstep) + 1
+        latmin = np.floor(min(lats1 + lats2) - tol)
+        nlat = np.ceil((max(lats1 + lats2) + tol - latmin) / latstep) + 1
         self.grid = Grid(lonmin, lonstep, nlon, latmin, latstep, nlat)
 
         # geodesic paths associated with pairs of stations of dispersion curves
