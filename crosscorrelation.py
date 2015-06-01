@@ -108,6 +108,7 @@ MULTIPROCESSING = {'merge trace': False,
 NB_PROCESSES = None
 if any(MULTIPROCESSING.values()):
     import multiprocessing as mp
+    mp.freeze_support()  # for Windows...
 
 # ====================================================
 # parsing configuration file to import some parameters
