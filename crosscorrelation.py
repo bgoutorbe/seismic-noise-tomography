@@ -262,6 +262,8 @@ for date in dates:
         if not trace or response is False:
             return
 
+        network = trace.stats.network
+        station = trace.stats.station
         try:
             pscrosscorr.preprocess_trace(
                 trace=trace,
@@ -288,7 +290,7 @@ for date in dates:
             msg = 'Unhandled error: {}'.format(err)
 
         # printing output (error or ok) message
-        print '{}.{} [{}] '.format(trace.stats.network, trace.stats.station, msg),
+        print '{}.{} [{}] '.format(network, station, msg),
 
         # although processing is performed in-place, trace is returned
         # in order to get it back after multi-processing
