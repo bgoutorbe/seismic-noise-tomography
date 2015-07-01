@@ -90,6 +90,9 @@ ALPHAS = (3000, 400)
 BETAS = (200, 200)
 LAMBDAS = (0.3, 0.3)
 
+# stations to skip (if any)
+SKIP_STATIONS = []
+
 # parsing configuration file to import dirs
 from pysismo.psconfig import FTAN_DIR, TOMO_DIR
 
@@ -173,6 +176,7 @@ for pickle_file in pickle_files:
             try:
                 v = pstomo.VelocityMap(dispersion_curves=curves,
                                        period=period,
+                                       skipstations=SKIP_STATIONS,
                                        skippairs=skippairs,
                                        verbose=False,
                                        lonstep=GRID_STEPS[passnb],

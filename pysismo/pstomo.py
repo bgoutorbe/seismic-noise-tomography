@@ -581,7 +581,7 @@ class VelocityMap:
      means that the product operation (*) on such objects is NOT the
      element-by-element product, but the real matrix product.
     """
-    def __init__(self, dispersion_curves, period, skippairs=(),
+    def __init__(self, dispersion_curves, period, skipstations=(), skippairs=(),
                  resolution_fit='cone', min_resolution_height=0.1,
                  showplot=False, verbose=True, **kwargs):
         """
@@ -593,11 +593,13 @@ class VelocityMap:
         - estimates the characteristic spatial resolution by fitting a cone
           to each line of the resolution matrix
 
-        Specify pairs to be skipped (if any), as a list of pairs of stations names,
-        e.g., skippairs = [('APOB', 'SPB'), ('ITAB', 'BAMB')].
-        This option is useful to perform a 2-pass tomographic inversion,
-        wherein pairs with a too large difference observed/predicted travel-
-        time are excluded from the second pass.
+        Specify stations and/or pairs to be skipped (if any), as a lists, e.g.:
+          skipstations = ['PORB', 'CAUB']
+          skippairs = [('APOB', 'SPB'), ('ITAB', 'BAMB')];
+        These options are useful (1) to test the influence of some given
+        station(s) on the tomographic maps, and (2) to perform a 2-pass
+        tomographic inversion, wherein pairs with a too large difference
+        observed/predicted travel- time are excluded from the second pass.
 
         Select the type of function you want to fit to each resolution map
         with *resolution_fit*:
@@ -637,6 +639,7 @@ class VelocityMap:
                               (default LAMBDA)
 
         @type dispersion_curves: list of L{DispersionCurve}
+        @type skipstations: list of str
         @type skippairs: list of (str, str)
         """
         self.period = period
@@ -670,7 +673,11 @@ class VelocityMap:
             print "- weighting norm by exp(- {} * path_density)".format(lambda_)
             print
 
-        # skipping pairs
+        # skipping stations and pairs
+        if skipstations:
+            dispersion_curves = [c for c in dispersion_curves
+                                 if not c.station1.name in skipstations and
+                                 not c.station2.name in skipstations]
         if skippairs:
             skippairs = [set(pair) for pair in skippairs]
             dispersion_curves = [c for c in dispersion_curves
