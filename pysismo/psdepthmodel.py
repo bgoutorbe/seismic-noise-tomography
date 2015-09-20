@@ -110,7 +110,7 @@ class VsModel:
             raise Exception("Depth out of range")
         return self.vs[indices]
 
-    def plot(self, periods, obsvgarrays=None, fig=None, color='r'):
+    def plot(self, periods, obsvgarrays=None, sigmavg=None, fig=None, color='r'):
         """
         Plots modelled and observed group velocity function of period (top)
         and the model itself, i.e. Vs vs depth (bottom)
@@ -125,7 +125,8 @@ class VsModel:
 
         # 1st subplot: group velocity vs period
         ax = axlist[0]
-        self.plot_vg(periods, obsvgarrays=obsvgarrays, ax=ax, legend=legend, color=color)
+        self.plot_vg(periods, obsvgarrays=obsvgarrays, sigmavg=sigmavg,
+                     ax=ax, legend=legend, color=color)
         ax.set_title(self.name)
 
         # 2nd subplot: Vs vs depth
@@ -136,7 +137,8 @@ class VsModel:
         fig.show()
         return fig
 
-    def plot_vg(self, periods, obsvgarrays=None, ax=None, legend=True, color='r'):
+    def plot_vg(self, periods, obsvgarrays=None, sigmavg=None, ax=None,
+                legend=True, color='r'):
         """
         Plots modelled and observed group velocity function of period
         """
@@ -151,7 +153,7 @@ class VsModel:
         if obsvgarrays:
             for i, vgarray in enumerate(obsvgarrays):
                 label = 'Observed dispersion curves' if not i else None
-                ax.plot(periods, vgarray, lw=0.5, color='k', label=label)
+                ax.errorbar(periods, vgarray, sigmavg, lw=0.5, color='k', label=label)
         ax.set_xlabel('Period (sec)')
         ax.set_ylabel('Group velocity (km/s)')
         if legend:

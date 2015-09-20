@@ -28,7 +28,7 @@ locations. The misfit to observed dispersion curves is then:
 
   S(m) = 1/2 sum{ [vg_model(T) - <vg_obs(T)>]^2 / sigma_obs(T)^2 } over T
 
-with <vg_obs(T)> and sigma_obs(T) the mean and standard deviation of oberved
+with <vg_obs(T)> and sigma_obs(T) the mean and standard deviation of observed
 group velocities at period T, respectively.
 
 The first step of the algorithm is to seek m0 that minimizes S(m) using a
@@ -101,11 +101,11 @@ from pysismo.psconfig import TOMO_DIR, DEPTHMODELS_DIR
 # nodes of the dispersion maps
 # ==================================================================
 
-LOCATIONS = {'Parana basin': (-51.5, -22.5),
-             'Sao Francisco craton': (-45.5, -18.5),
-             'Tocantins province': (-48.5, -13.5)
+LOCATIONS = {'Parana basin': (-52, -22),
+             'Sao Francisco craton': (-45, -19),
+             'Tocantins province': (-49, -13)
              }
-NB_NEIGHBORS = 4
+NB_NEIGHBORS = 1
 
 print u"Select location(s) on which estimate depth models [all]:"
 print '0 - All'
@@ -158,14 +158,16 @@ VS_CRUST_BOUNDS = (3.2, 4.0)
 DZ_CRUST_BOUNDS = (10.0, 30.0)
 MOHO_DEPTH_BOUNDS = (35.0, 50.0)
 # location-specific bounds (if available)
-LOCAL_DZ_SEDIMENTS_BOUNDS = {'Parana basin': (2.5, 5.2),  # from Laske & Masters
-                             'Sao Francisco craton': (0.0, 0.4),
-                             'Tocantins province': (0.0, 0.1)}
+# sediments thickness: 2 km around (rounded) value of Laske & Masters
+LOCAL_DZ_SEDIMENTS_BOUNDS = {'Parana basin': (3.0, 7.0),      # Laske & Masters: 4.5 4.5 5 5.2 km
+                             'Sao Francisco craton': (0.0, 2.0),  # (neighbours) 0.1 0.1 0.25 0.4 km
+                             'Tocantins province': (0.0, 2.0)}                 # 0.01 0.01 0.1 0.1 km
 LOCAL_VS_CRUST_BOUNDS = {}
 LOCAL_DZ_CRUST_BOUNDS = {}
-LOCAL_MOHO_DEPTH_BOUNDS = {'Parana basin': (39.0, 45.0),  # (42.0, 45.0),
-                           'Sao Francisco craton': (37.0, 43.0),  # (38.0, 41.0),
-                           'Tocantins province': (35.0, 41.0)  # (36.0, 44.0)
+# Moho depth: 5 km around (rounded) value of Assumpcao et al.
+LOCAL_MOHO_DEPTH_BOUNDS = {'Parana basin': (38.0, 48.0),  # Assumpcao et al.: 43.4 km
+                           'Sao Francisco craton': (35.0, 45.0),            # 39.7 km
+                           'Tocantins province': (33.0, 43.0)               # 38 km
                            }   # from Assumpcao et al.
 # min Vs increment (set to 0 to force Vs increase with depth)
 VS_MIN_INCREMENT = 0.0
@@ -179,7 +181,7 @@ VS_MIN_INCREMENT = 0.0
 VS_SAMPLINGSTEP = 0.02
 VS_MAXJUMP = 0.06
 # thickness of sediment layer
-DZ_SEDIMENTS_SAMPLINGSTEP = 0.1
+DZ_SEDIMENTS_SAMPLINGSTEP = 0.2
 DZ_SEDIMENTS_MAXJUMP = 0.5
 # thickness of crustal layers
 DZ_CRUSTLAYER_SAMPLINGSTEP = 1.0
@@ -203,17 +205,19 @@ usersuffix = raw_input("\nEnter suffix to append: [none]\n").strip()
 # =====================================================================
 
 print "Loading velocity maps"
-PICKLE_FILE_SHORT_PERIODS = os.path.join(
-    TOMO_DIR, '2-pass-tomography_1996-2012_xmlresponse_3-60s_periods=6-10s.pickle')
-PICKLE_FILE_LONG_PERIODS = os.path.join(
-    TOMO_DIR, '2-pass-tomography_1996-2012_xmlresponse_7-60s_periods=10-30s.pickle')
+s = ('2-pass-tomography_1996-2012_xmlresponse_3-60s_'
+     'earthquake-band=3-60s_periods=6-10s.pickle')
+PICKLE_FILE_SHORT_PERIODS = os.path.join(TOMO_DIR, s)
+s = ('2-pass-tomography_1996-2012_xmlresponse_7-60s_'
+     'earthquake-band=7-60s_periods=10-30s.pickle')
+PICKLE_FILE_LONG_PERIODS = os.path.join(TOMO_DIR, s)
 
 with open(PICKLE_FILE_SHORT_PERIODS, 'rb') as f:
     VMAPS_SHORT = pickle.load(f)
 with open(PICKLE_FILE_LONG_PERIODS, 'rb') as f:
     VMAPS_LONG = pickle.load(f)
 
-PERIODVMAPS = {T: (VMAPS_SHORT[T] if T < 10 else VMAPS_LONG[T]) for T in range(6, 26)}
+PERIODVMAPS = {T: (VMAPS_SHORT[T] if T <= 10 else VMAPS_LONG[T]) for T in range(6, 26)}
 PERIODS = np.array(sorted(PERIODVMAPS.keys()))
 
 # =========================
@@ -277,7 +281,19 @@ for locname, (lon, lat) in sorted(LOCATIONS.items()):
         for vg, vel in zip(vgarrays, vels):
             vg[iT] = vel
         meanvg[iT] = vels.mean()
-        sigmavg[iT] = vels.std()
+
+        # standard deviation of velocities...
+        if vels.size > 1:
+            # ...estimated across the set of velocities if
+            # several velocities available (NB_NEIGHBORS > 1)
+            sigmavg[iT] = vels.std()
+        else:
+            # ...estimated from the covariance matrix of the
+            # best-fitting parameters of the tomographic inversion
+            # if only one velocity (NB_NEIGHBORS = 1)
+            sigmamopt = np.sqrt(vmap.covmopt[inodes[0], inodes[0]])
+            # m = (v0 - v) / v, so sigma_m = v0 * sigma_v / v^2
+            sigmavg[iT] = vels[0]**2 * sigmamopt / vmap.v0
 
     # ==============================================================
     # quick estimate of best-fitting parameters (thicknesses and Vs)
@@ -538,10 +554,10 @@ for locname, (lon, lat) in sorted(LOCATIONS.items()):
 
             continue
 
-    # ==============================================
-    # dumping (1) observed vg arrays and (2) sampled
-    # models from posterior distribution
-    # ==============================================
+    # ==========================================================
+    # dumping (1) observed vg arrays, (2) array of std dev of vg
+    # and (3) sampled models from posterior distribution
+    # ==========================================================
 
     # out prefix = e.g., "1d models/Parana basin"
     outprefix = os.path.join(DEPTHMODELS_DIR, locname)
@@ -556,6 +572,8 @@ for locname, (lon, lat) in sorted(LOCATIONS.items()):
     f = open(outfile, 'wb')
     # dumping observed group velocities
     pickle.dump(vgarrays, f, protocol=2)
+    # dumping std deviation of vg
+    pickle.dump(sigmavg, f, protocol=2)
     # dumping sampled models from posterior distribution
     pickle.dump(vsmodels, f, protocol=2)
     f.close()
@@ -599,7 +617,12 @@ for locname, (lon, lat) in sorted(LOCATIONS.items()):
     # initial model, representative model, 95% interval and mean
     # of posterior distribution
     ax = fig.add_subplot(nrows, ncols, 1)
-    vsmodelinit.plot_vg(PERIODS, obsvgarrays=vgarrays, ax=ax, color='b')  # initial model
+    # initial model
+    vsmodelinit.plot_vg(PERIODS,
+                        obsvgarrays=vgarrays,
+                        sigmavg=sigmavg if NB_NEIGHBORS == 1 else None,
+                        ax=ax,
+                        color='b')
     representative_model.plot_vg(PERIODS, ax=ax, color='r')  # representative model
     best_model.plot_vg(PERIODS, ax=ax, color='g')  # best-fitting model
     # 95% confidence interval

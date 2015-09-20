@@ -569,9 +569,10 @@ class VelocityMap:
                      (m = parameter vector = (v0-v)/v at grid nodes)
      - density     : array of path densities at grid nodes
      - Q           : regularization matrix
-     - Ginv        : inversion operator, (Gt.C^-1.G + Q)^-1.Gt
      - mopt        : vector of best-fitting parameters, Ginv.C^-1.dobs
                      = best-fitting (v0-v)/v at grid nodes
+     - covmopt     : covariance matrix of the best-fitting parameters, (Gt.C^-1.G + Q)^-1
+     - Ginv        : inversion operator, (Gt.C^-1.G + Q)^-1.Gt = covmopt.Gt
      - R           : resolution matrix, (Gt.C^-1.G + Q)^-1.Gt.C^-1.G = Ginv.C^-1.G
      - Rradius     : array of radii of the cones that best-fit each line of the
                      resolution matrix
@@ -593,7 +594,7 @@ class VelocityMap:
         - estimates the characteristic spatial resolution by fitting a cone
           to each line of the resolution matrix
 
-        Specify stations and/or pairs to be skipped (if any), as a lists, e.g.:
+        Specify stations and/or pairs to be skipped (if any), as lists, e.g.:
           skipstations = ['PORB', 'CAUB']
           skippairs = [('APOB', 'SPB'), ('ITAB', 'BAMB')];
         These options are useful (1) to test the influence of some given
@@ -891,10 +892,13 @@ class VelocityMap:
         # Ginv.C^-1.G
         # ===========================================================
 
-        # inversion operator
+        # covariance matrix and inversion operator
+        if verbose:
+            print "Setting up covariance matrix of best-fitting params (covmopt)"
+        self.covmopt = (self.G.T * self.Cinv * self.G + self.Q).I
         if verbose:
             print "Setting up inversion operator (Ginv)"
-        self.Ginv = (self.G.T * self.Cinv * self.G + self.Q).I * self.G.T
+        self.Ginv = self.covmopt * self.G.T
 
         # vector of best-fitting parameters
         if verbose:
