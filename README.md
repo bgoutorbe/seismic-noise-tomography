@@ -111,3 +111,13 @@ p. 1531–1545. doi:10.1007/PL00001233
 problems, *J. Geophys. Res.*, **100**(B7), p. 12431–12447
 \[[journal](http://onlinelibrary.wiley.com/doi/10.1029/94JB03097/abstract)\]
 \[[pdf](http://www.ipgp.fr/~tarantola/Files/Professional/Papers_PDF/MonteCarlo_latex.pdf)\]
+
+Publications
+------------
+Please let me know of your published works making use of this project.
+
+- Goutorbe, B., Coelho, L.O. and Drouet, S. (2015). 
+Rayleigh wave group velocities at periods of 6–23 s across Brazil from ambient noise 
+tomography. *Geophys. J. Int.*, **203**, 869–882. doi:10.1093/gji/ggv343
+\[[journal](http://gji.oxfordjournals.org/content/203/2/869.abstract)\]
+\[[pdf](https://www.researchgate.net/publication/281937971_Rayleigh_wave_group_velocities_at_periods_of_623_s_across_Brazil_from_ambient_noise_tomography)\]
