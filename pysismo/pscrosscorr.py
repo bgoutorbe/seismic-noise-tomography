@@ -225,11 +225,11 @@ class CrossCorrelation:
         """
         # verifying sampling rates
         try:
-            assert 1.0 / tr1.stats.sampling_rate == self._get_xcorr_dt()
-            assert 1.0 / tr2.stats.sampling_rate == self._get_xcorr_dt()
+            assert abs(1.0 / tr1.stats.sampling_rate - self._get_xcorr_dt()) < EPS
+            assert abs(1.0 / tr2.stats.sampling_rate - self._get_xcorr_dt()) < EPS
         except AssertionError:
-            s = 'Sampling rates of traces are not equal:\n{tr1}\n{tr2}'
-            raise Exception(s.format(tr1=tr1, tr2=tr2))
+            s = 'Sampling rates of traces are not equal to that of cross-corr ({r:.1f} Hz):\n{tr1}\n{tr2}'
+            raise Exception(s.format(r=1.0 / self._get_xcorr_dt(), tr1=tr1, tr2=tr2))
 
         # cross-correlation
         if xcorr is None:
