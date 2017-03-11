@@ -82,7 +82,7 @@ DEPTHMODELS_DIR = ./output/1D models        ; dir of 1D depth inversion results
 
 # dir of the (binaries of the) Computer Programs in Seismology, used
 # to calculate a theoretical dispersion curve given a 1D model
-# (set to null if you have not installed them)
+# (leave empty if you have not installed them)
 COMPUTER_PROGRAMS_IN_SEISMOLOGY_DIR = /home/bruno/Data/Recherche/Utilitaires/Programmes/Computer Programs in Seismology/bin
 
 
