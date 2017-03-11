@@ -107,7 +107,7 @@ COMPUTER_PROGRAMS_IN_SEISMOLOGY_DIR = /home/bruno/Data/Recherche/Utilitaires/Pro
 #   '\' will be replaced with line breaks), and the second field contains
 #   the label's angle.
 #
-# You can set any of these files to ``null``.
+# Leave path empty if you don't have the corresponding shapefile.
 
 COAST_SHP = ./shapefiles/SouthAmericaCoasts.shp
 TECTO_SHP = ./shapefiles/SouthAmericaTectonicElements.shp

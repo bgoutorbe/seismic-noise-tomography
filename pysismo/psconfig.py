@@ -40,7 +40,7 @@ def select_and_parse_config_file(basedir='.', ext='cnf', verbose=True):
     if verbose:
         print "Reading configuration file: {}".format(config_file)
 
-    conf = ConfigParser.ConfigParser()
+    conf = ConfigParser.ConfigParser(allow_no_value=True)
     conf.read(config_file)
 
     return conf
