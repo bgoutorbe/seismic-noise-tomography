@@ -1619,7 +1619,7 @@ class CrossCorrelationCollection(AttribDict):
                 print "{s1}-{s2}".format(s1=s1name, s2=s2name),
 
             # checking that sampling rates are equal
-            assert tr1.stats.sampling_rate == tr2.stats.sampling_rate
+            assert abs(tr1.stats.sampling_rate - tr2.stats.sampling_rate) < EPS
 
             # looking for s1 and s2 in the list of stations
             station1 = next(s for s in stations if s.name == s1name)
